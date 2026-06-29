@@ -79,6 +79,18 @@ app.get("/api/test-us-states-v1", async (req, res) => {
   res.json({ message: `US States (v1) scan complete. ${total} new match(es) found.` });
 });
 
+const { runDomainScraper } = require("./scrapers/domainScraper");
+app.get("/api/test-domains", async (req, res) => {
+  const total = await runDomainScraper();
+  res.json({ message: `Domain scan complete. ${total} registered typo domain(s) found.` });
+});
+
+const { runMarketplaceScraper } = require("./scrapers/marketplaceScraper");
+app.get("/api/test-marketplace", async (req, res) => {
+  const total = await runMarketplaceScraper();
+  res.json({ message: `Marketplace scan complete. ${total} new listing(s) found.` });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

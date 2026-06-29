@@ -22,7 +22,9 @@
     "fast-levenshtein": "^3.0.0",
     "nodemailer": "^9.0.1",
     "puppeteer": "^25.2.1",
-    "user-agents": "^2.1.104",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "user-agents": "^2.1.105",
     "ws": "^8.21.0"
   }
 }
