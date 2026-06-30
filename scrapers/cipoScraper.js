@@ -38,17 +38,50 @@ async function logScan(startedAt, totalFound, errorMsg = null) {
   ]);
 }
 
-// ── Search CIPO Canada (mock — site geo-blocked from Pakistan) ───────────────
-// TODO: replace with live scrape when accessible
-// Live URL: https://opic.ic.gc.ca/app/opic-cipo/trdmrks/srch/home
+// ── Search CIPO Canada ───────────────────────────────────────────────────────
+// STATUS: PERMANENTLY BLOCKED — opic.ic.gc.ca is geo-blocked from Pakistan.
+// Returns connection refused / timeout for all non-Canadian IPs.
+// FLAGGED TO KABIR — needs a Canadian proxy/VPN on the Render server to resolve.
+// Live URL (accessible from Canada only): https://opic.ic.gc.ca/app/opic-cipo/trdmrks/srch/home
 async function searchCIPO(keyword) {
-  const mockResults = [
-    { name: keyword,              filingDate: "2017-06-14", owner: "Mock Owner CA 1" },
-    { name: keyword + " CA",      filingDate: "2019-09-03", owner: "Mock Owner CA 2" },
-    { name: keyword + "S",        filingDate: "2020-02-18", owner: "Mock Owner CA 3" },
-    { name: keyword.slice(0, -1), filingDate: "2016-12-22", owner: "Mock Owner CA 4" },
-  ];
-  return mockResults;
+  const axios = require("axios");
+  
+  const response = await axios.post(
+    "https://www.tmdn.org/tmview/api/search/results?translate=true",
+    {
+      page: "1",
+      pageSize: "100",
+      criteria: "C",
+      basicSearch: keyword,
+      newPage: true,
+      offices: ["CA"],
+      fields: ["ST13","tmName","tmOffice","applicationNumber","applicationDate","tradeMarkStatus","niceClass","applicantName"],
+    },
+    {
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.tmdn.org/tmview/",
+        "Origin": "https://www.tmdn.org",
+      },
+      timeout: 20000,
+    }
+  );
+
+  const hits = (response.data && Array.isArray(response.data.tradeMarks) && response.data.tradeMarks) || [];
+  const caHits = hits.filter(h => h.tmOffice === "CA");
+  
+  console.log(`[CIPO] "${keyword}" — ${caHits.length} CA results of ${hits.length} total`);
+  if (hits.length > 0 && caHits.length === 0) {
+    console.log(`[CIPO] Offices in response: ${[...new Set(hits.map(h => h.tmOffice))].join(", ")}`);
+  }
+
+  return caHits.map(tm => ({
+    name: tm.tmName || "",
+    filingDate: tm.applicationDate ? tm.applicationDate.split("T")[0] : null,
+    owner: Array.isArray(tm.applicantName) ? (tm.applicantName[0] || "") : (tm.applicantName || ""),
+  }));
 }
 
 // ── Dedup check ──────────────────────────────────────────────────────────────

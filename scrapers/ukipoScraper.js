@@ -1,57 +1,103 @@
+// ukipoScraper.js
+// STRATEGY: Direct POST to TMview API — request format captured from browser interception.
+// Filters to UK office only. No Puppeteer required.
+
 const axios = require("axios");
 const levenshtein = require("fast-levenshtein");
 const supabase = require("../lib/supabase");
 
-// ── Helper: similarity score between 0 and 1 ────────────────────────────────
+const DELAY_MS = 3000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getSimilarity(a, b) {
   const s1 = a.toLowerCase().trim();
   const s2 = b.toLowerCase().trim();
   if (s1 === s2) return 1;
   const maxLen = Math.max(s1.length, s2.length);
   if (maxLen === 0) return 1;
-  const distance = levenshtein.get(s1, s2);
-  return 1 - distance / maxLen;
+  return 1 - levenshtein.get(s1, s2) / maxLen;
 }
 
-// ── Helper: check if keyword is contained inside filing name ─────────────────
 function isContainedMatch(keyword, filingName) {
   const k = keyword.toLowerCase().trim();
   const f = filingName.toLowerCase().trim();
   return f.includes(k) || k.includes(f);
 }
 
-// ── Helper: 2 second delay ───────────────────────────────────────────────────
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// ── Helper: log scan to scan_logs ────────────────────────────────────────────
 async function logScan(startedAt, totalFound, errorMsg = null) {
-  await supabase.from("scan_logs").insert([
-    {
-      scan_type: "trademark_ukipo",
-      started_at: startedAt,
-      completed_at: new Date().toISOString(),
-      total_found: totalFound,
-      error_log: errorMsg,
-    },
-  ]);
+  await supabase.from("scan_logs").insert([{
+    scan_type: "trademark_ukipo",
+    started_at: startedAt,
+    completed_at: new Date().toISOString(),
+    total_found: totalFound,
+    error_log: errorMsg,
+  }]);
 }
 
-// ── Search UKIPO (mock — live site blocks server requests) ───────────────────
-// TODO: replace with live scrape when accessible
-// Live URL: https://trademarks.ipo.gov.uk/ipo-tmtext
+function normalizeUKHit(tm) {
+  const name = tm.tmName || tm.wordMark || tm.name || "";
+
+  let filingDate = tm.applicationDate || tm.filingDate || null;
+  if (filingDate && typeof filingDate === "string" && filingDate.includes("T")) {
+    filingDate = filingDate.split("T")[0]; // "2015-02-06T12:00:00.000Z" → "2015-02-06"
+  }
+
+  const owner = Array.isArray(tm.applicantName)
+    ? (tm.applicantName[0] || "")
+    : (tm.applicantName || "");
+
+  return { name, filingDate, owner, raw: tm };
+}
+
 async function searchUKIPO(keyword) {
-  const mockResults = [
-    { name: keyword,              filingDate: "2019-03-12", owner: "Mock Owner UK 1" },
-    { name: keyword + " UK",      filingDate: "2020-07-22", owner: "Mock Owner UK 2" },
-    { name: keyword + "S",        filingDate: "2018-11-30", owner: "Mock Owner UK 3" },
-    { name: keyword.slice(0, -1), filingDate: "2021-01-05", owner: "Mock Owner UK 4" },
-  ];
-  return mockResults;
+  const body = {
+    page: "1",
+    pageSize: "100",          // was 30 — get more results
+    criteria: "C",            // C = Contains
+    basicSearch: keyword,
+    newPage: true,
+    offices: ["GB"],          // ← UK office filter
+    fields: [
+      "ST13", "markImageURI", "tmName", "tmOffice",
+      "applicationNumber", "applicationDate",
+      "tradeMarkStatus", "niceClass", "applicantName",
+    ],
+  };
+
+  const response = await axios.post(
+    "https://www.tmdn.org/tmview/api/search/results?translate=true",
+    body,
+    {
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.tmdn.org/tmview/",
+        "Origin": "https://www.tmdn.org",
+      },
+      timeout: 20000,
+    }
+  );
+
+  const data = response.data;
+  const hits = (data && Array.isArray(data.tradeMarks) && data.tradeMarks) || [];
+
+  // Log response shape on first run so we can verify
+  console.log(`[UKIPO] "${keyword}" — ${hits.length} result(s) from API`);
+  if (hits.length > 0) {
+    const offices = [...new Set(hits.map(h => h.tmOffice))];
+    console.log(`[UKIPO] Offices in response: ${offices.join(", ")}`);
+  } else {
+    console.log(`[UKIPO] Response preview: ${JSON.stringify(data).slice(0, 300)}`);
+  }
+
+  // Enforce UK filter (in case API ignores the offices param)
+  return hits.filter(h => !h.tmOffice || h.tmOffice === "GB");
 }
 
-// ── Dedup check ──────────────────────────────────────────────────────────────
 async function isDuplicate(filingName, matchedKeyword) {
   const { data } = await supabase
     .from("trademark_matches")
@@ -63,28 +109,13 @@ async function isDuplicate(filingName, matchedKeyword) {
   return data && data.length > 0;
 }
 
-// ── Insert match ─────────────────────────────────────────────────────────────
-async function insertMatch(filing, keyword, score) {
-  await supabase.from("trademark_matches").insert([
-    {
-      registry:         "UKIPO",
-      filing_name:      filing.name,
-      filing_date:      filing.filingDate || null,
-      matched_keyword:  keyword,
-      similarity_score: score,
-      raw_data:         filing,
-      status:           "new",
-    },
-  ]);
-}
-
-// ── MAIN ─────────────────────────────────────────────────────────────────────
 async function runUKIPOScraper() {
   const startedAt = new Date().toISOString();
   let totalInserted = 0;
   let errorMsg = null;
 
   console.log("[UKIPO] Scraper started at", startedAt);
+  console.log("[UKIPO] Route: TMview direct API — no Puppeteer");
 
   try {
     const { data: keywords, error: kwError } = await supabase
@@ -102,32 +133,38 @@ async function runUKIPOScraper() {
     console.log(`[UKIPO] Found ${keywords.length} active keyword(s) to scan.`);
 
     for (const kw of keywords) {
-      console.log(`[UKIPO] Searching for: "${kw.term}"`);
-
       try {
-        const results = await searchUKIPO(kw.term);
-        console.log(`[UKIPO] Got ${results.length} result(s) for "${kw.term}"`);
+        console.log(`[UKIPO] Searching for: "${kw.term}"`);
+        const hits = await searchUKIPO(kw.term);
 
-        for (const filing of results) {
-          const filingName = filing.name || "";
-          if (!filingName) continue;
+        for (const hit of hits) {
+          const { name, filingDate, owner, raw } = normalizeUKHit(hit);
+          if (!name) continue;
 
-          const score = getSimilarity(kw.term, filingName);
-          const contained = isContainedMatch(kw.term, filingName);
+          const score = getSimilarity(kw.term, name);
+          const contained = isContainedMatch(kw.term, name);
 
           if (score >= 0.8 || contained) {
             const finalScore = score >= 0.8 ? score : 0.75;
-            console.log(`[UKIPO] Match found: "${filingName}" (score: ${finalScore.toFixed(2)})`);
 
-            const duplicate = await isDuplicate(filingName, kw.term);
+            const duplicate = await isDuplicate(name, kw.term);
             if (duplicate) {
-              console.log(`[UKIPO] Skipping duplicate: "${filingName}"`);
+              console.log(`[UKIPO] Skipping duplicate: "${name}"`);
               continue;
             }
 
-            await insertMatch(filing, kw.term, finalScore);
+            await supabase.from("trademark_matches").insert([{
+              registry: "UKIPO",
+              filing_name: name,
+              filing_date: filingDate || null,
+              matched_keyword: kw.term,
+              similarity_score: finalScore,
+              raw_data: raw,
+              status: "new",
+            }]);
+
             totalInserted++;
-            console.log(`[UKIPO] Inserted: "${filingName}"`);
+            console.log(`[UKIPO] Inserted: "${name}" (score: ${finalScore.toFixed(2)})`);
           }
         }
       } catch (kwErr) {
@@ -135,7 +172,7 @@ async function runUKIPOScraper() {
         errorMsg = kwErr.message;
       }
 
-      await sleep(2000);
+      await sleep(DELAY_MS);
     }
   } catch (err) {
     console.error("[UKIPO] Scraper failed:", err.message);
