@@ -24,7 +24,7 @@
     "puppeteer": "^25.2.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-
+    "user-agents": "^2.1.107",
     "ws": "^8.21.0"
   }
 }

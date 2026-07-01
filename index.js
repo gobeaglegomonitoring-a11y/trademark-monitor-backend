@@ -91,6 +91,17 @@ app.get("/api/test-marketplace", async (req, res) => {
   res.json({ message: `Marketplace scan complete. ${total} new listing(s) found.` });
 });
 
+const { runSocialScraper } = require("./scrapers/socialScraper");
+app.get("/api/test-social", async (req, res) => {
+  const total = await runSocialScraper();
+  res.json({ message: `Social scan complete. ${total} new match(es) found.` });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+const { sendAlertIfNewMatches } = require("./services/emailAlert");
+app.get("/api/test-email-alert", async (req, res) => {
+  const result = await sendAlertIfNewMatches();
+  res.json(result);
 });
