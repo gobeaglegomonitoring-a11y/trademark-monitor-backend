@@ -29,6 +29,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/keywords', require('./routes/keywords'));
 app.use('/api/matches', require('./routes/matches'));
+app.use('/api/scan-logs', require('./routes/scanLogs'));
 
 // Test endpoints
 const { runEUIPOScraper } = require("./scrapers/euipoScraper");
@@ -99,9 +100,4 @@ app.get("/api/test-social", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});
-const { sendAlertIfNewMatches } = require("./services/emailAlert");
-app.get("/api/test-email-alert", async (req, res) => {
-  const result = await sendAlertIfNewMatches();
-  res.json(result);
 });
