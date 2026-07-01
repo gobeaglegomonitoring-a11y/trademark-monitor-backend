@@ -1,9 +1,9 @@
 const supabase = require('../lib/supabase');
 
 async function fetchMatches({ keywords, dateFrom, dateTo, status }) {
-  const filters = (query, table) => {
+  const applyFilters = (query, kwCol) => {
     if (keywords && keywords.length > 0) {
-      query = query.in('keyword_matched', keywords);
+      query = query.in(kwCol, keywords);
     }
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
@@ -12,10 +12,10 @@ async function fetchMatches({ keywords, dateFrom, dateTo, status }) {
   };
 
   const [tm, dm, mm, sm] = await Promise.all([
-    filters(supabase.from('trademark_matches').select('keyword_matched, trademark_name, source, status, created_at'), 'trademark_matches'),
-    filters(supabase.from('domain_matches').select('keyword_matched, domain, status, created_at'), 'domain_matches'),
-    filters(supabase.from('marketplace_matches').select('keyword_matched, platform, listing_title, listing_url, seller_name, status, created_at'), 'marketplace_matches'),
-    filters(supabase.from('social_matches').select('keyword_matched, platform, username, profile_url, status, created_at'), 'social_matches'),
+    applyFilters(supabase.from('trademark_matches').select('matched_keyword, filing_name, registry, status, created_at'), 'matched_keyword'),
+    applyFilters(supabase.from('domain_matches').select('keyword_matched, domain, status, created_at'), 'keyword_matched'),
+    applyFilters(supabase.from('marketplace_matches').select('keyword_matched, platform, listing_title, listing_url, seller_name, status, created_at'), 'keyword_matched'),
+    applyFilters(supabase.from('social_matches').select('keyword_matched, platform, handle_or_url, status, created_at'), 'keyword_matched'),
   ]);
 
   return {
@@ -41,14 +41,14 @@ function badge(status) {
   return `<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;${colors[s] || colors.new}">${s}</span>`;
 }
 
-function section(title, color, rows) {
-  if (rows.length === 0) return '';
+function section(title, color, count, html) {
+  if (count === 0) return '';
   return `
     <div class="section">
       <div class="section-title" style="border-left:4px solid ${color}">${title}
-        <span class="count">${rows.length}</span>
+        <span class="count">${count}</span>
       </div>
-      ${rows}
+      ${html}
     </div>`;
 }
 
@@ -56,14 +56,14 @@ function trademarkTable(rows) {
   if (!rows.length) return '';
   const trs = rows.map(r => `
     <tr>
-      <td>${r.keyword_matched || '—'}</td>
-      <td>${r.trademark_name  || '—'}</td>
-      <td>${r.source          || '—'}</td>
+      <td>${r.matched_keyword || '—'}</td>
+      <td>${r.filing_name     || '—'}</td>
+      <td>${r.registry        || '—'}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
   return `<table><thead><tr>
-    <th>Keyword</th><th>Trademark Name</th><th>Source</th><th>Status</th><th>Date</th>
+    <th>Keyword</th><th>Filing Name</th><th>Registry</th><th>Status</th><th>Date</th>
   </tr></thead><tbody>${trs}</tbody></table>`;
 }
 
@@ -103,12 +103,12 @@ function socialTable(rows) {
     <tr>
       <td>${r.keyword_matched || '—'}</td>
       <td>${r.platform        || '—'}</td>
-      <td>${r.username        || '—'}</td>
+      <td>${r.handle_or_url   || '—'}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
   return `<table><thead><tr>
-    <th>Keyword</th><th>Platform</th><th>Username</th><th>Status</th><th>Date</th>
+    <th>Keyword</th><th>Platform</th><th>Handle / URL</th><th>Status</th><th>Date</th>
   </tr></thead><tbody>${trs}</tbody></table>`;
 }
 
@@ -186,10 +186,10 @@ function buildHtml({ matches, keywords, dateFrom, dateTo }) {
   </div>
 </div>
 
-${section('Trademark Registry Matches', '#2E5FA3', trademarkTable(matches.trademark))}
-${section('Domain Typo Matches',         '#D4A017', domainTable(matches.domain))}
-${section('Marketplace Matches',          '#1E7A4A', marketplaceTable(matches.marketplace))}
-${section('Social Media Matches',         '#5B2D8E', socialTable(matches.social))}
+${section('Trademark Registry Matches', '#2E5FA3', matches.trademark.length,   trademarkTable(matches.trademark))}
+${section('Domain Typo Matches',         '#D4A017', matches.domain.length,      domainTable(matches.domain))}
+${section('Marketplace Matches',          '#1E7A4A', matches.marketplace.length, marketplaceTable(matches.marketplace))}
+${section('Social Media Matches',         '#5B2D8E', matches.social.length,      socialTable(matches.social))}
 
 <div class="footer">
   <span>Cyber Nexus — Trademark & Brand Monitor</span>
