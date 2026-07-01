@@ -1,0 +1,34 @@
+name: Daily Trademark Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # midnight UTC every day
+  workflow_dispatch:        # allow manual trigger from GitHub Actions tab
+
+jobs:
+  run-scan:
+    name: Run All Scrapers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Trigger scan on Render backend
+        run: |
+          echo "Starting daily scan at $(date -u)"
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-scan-api-key: ${{ secrets.SCAN_API_KEY }}" \
+            --max-time 1500 \
+            https://trade-mark-sys.onrender.com/api/scan/runall)
+
+          echo "HTTP status: $response"
+          echo "Response body:"
+          cat /tmp/response.json
+
+          if [ "$response" != "200" ]; then
+            echo "Scan failed with HTTP $response"
+            exit 1
+          fi
+
+          echo "Daily scan completed successfully"
