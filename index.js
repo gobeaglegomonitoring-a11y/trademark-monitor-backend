@@ -31,12 +31,8 @@ app.use('/api/keywords', require('./routes/keywords'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/scan-logs', require('./routes/scanLogs'));
 app.use('/api/reports', require('./routes/reports'));
-<<<<<<< HEAD
 app.use('/api/settings', require('./routes/settings'));
-=======
 app.use('/api/scan',    require('./routes/scan'));
-
->>>>>>> d93bf596ed4948d316d5957ccdaced5ba51437d9
 // Test endpoints
 const { runEUIPOScraper } = require("./scrapers/euipoScraper");
 app.get("/api/test-euipo", async (req, res) => {
