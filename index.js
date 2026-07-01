@@ -30,6 +30,7 @@ app.get('/health', (req, res) => {
 app.use('/api/keywords', require('./routes/keywords'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/scan-logs', require('./routes/scanLogs'));
+app.use('/api/reports', require('./routes/reports'));
 
 // Test endpoints
 const { runEUIPOScraper } = require("./scrapers/euipoScraper");

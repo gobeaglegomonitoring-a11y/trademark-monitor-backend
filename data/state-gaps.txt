@@ -1,25 +1,27 @@
-================================================================
-TRADEMARK REGISTRY GAPS — Updated 2026-06-29
-================================================================
-
---- INTERNATIONAL REGISTRIES (non-US) ---
-
-CA  CIPO (Canada)        | RESOLVED (2026-06-29): opic.ic.gc.ca is geo-blocked from Pakistan server,
-                         | but Canadian trademark data is available via TMview API (tmdn.org).
-                         | cipoScraper.js uses direct POST to TMview with offices: ["CA"].
-                         | Confirmed working — 112 inserts on first live run.
-
---- US STATE REGISTRIES ---
-
-AL  Alabama              | TIMEOUT: axios error: timeout of 12000ms exceeded (tried twice)
-AZ  Arizona              | DNS ERROR: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
-CA  California           | DNS ERROR: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
-ME  Maine                | TIMEOUT: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
-ND  North Dakota         | TIMEOUT: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
-SC  South Carolina       | TIMEOUT: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
-VA  Virginia             | TIMEOUT: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
-WV  West Virginia        | TIMEOUT: axios error: timeout of 12000ms exceeded
-WI  Wisconsin            | TIMEOUT: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
+AL  Alabama              | axios error: timeout of 12000ms exceeded
+AL  Alabama              | axios error: timeout of 12000ms exceeded
+AL  Alabama              | axios error: timeout of 12000ms exceeded
+AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
+AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
+AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
+CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
+CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
+CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
+ME  Maine                | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
+ME  Maine                | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
+ME  Maine                | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
+ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
+ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
+ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
+SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
+SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
+SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
+VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
+VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
+VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
+WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
+WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
+WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
 DE  Delaware             | BLOCKED: CAPTCHA on all automated queries — permanently blocked
 IA  Iowa                 | BLOCKED: Public API costs $2,400/yr; HTML portal requires session tokens — permanently blocked
 LA  Louisiana            | BLOCKED: CAPTCHA required on all search requests — permanently blocked

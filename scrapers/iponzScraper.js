@@ -1,4 +1,6 @@
 const levenshtein = require('fast-levenshtein');
+const fs = require('fs/promises');
+const path = require('path');
 const supabase = require('../lib/supabase');
 
 const DELAY_MS = 3000;
@@ -14,6 +16,44 @@ function getSimilarity(a, b) {
   const maxLen = Math.max(s1.length, s2.length);
   if (maxLen === 0) return 1;
   return 1 - levenshtein.get(s1, s2) / maxLen;
+}
+
+function safeFilePart(value) {
+  return String(value)
+    .replace(/[^a-z0-9_-]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'keyword';
+}
+
+async function captureDebugPage(page, keyword) {
+  const debugDir = path.join(__dirname, '..', 'debug', 'iponz');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const baseName = `${stamp}-${safeFilePart(keyword)}`;
+  const htmlPath = path.join(debugDir, `${baseName}.html`);
+  const textPath = path.join(debugDir, `${baseName}.txt`);
+  const screenshotPath = path.join(debugDir, `${baseName}.png`);
+
+  await fs.mkdir(debugDir, { recursive: true });
+
+  const [html, text] = await Promise.all([
+    page.content(),
+    page.evaluate(() => document.body?.innerText || ''),
+  ]);
+
+  await Promise.all([
+    fs.writeFile(htmlPath, html, 'utf8'),
+    fs.writeFile(textPath, text, 'utf8'),
+    page.screenshot({ path: screenshotPath, fullPage: true }),
+  ]);
+
+  console.log(`[IPONZ] Debug capture saved: ${path.relative(process.cwd(), htmlPath)}, ${path.relative(process.cwd(), textPath)}, ${path.relative(process.cwd(), screenshotPath)}`);
+}
+
+async function hasCaptchaChallenge(page) {
+  return page.evaluate(() => {
+    const text = document.body?.innerText || '';
+    return /captcha|i'?m not a robot|solve and validate/i.test(text);
+  });
 }
 
 async function searchIPONZ(browser, keyword) {
@@ -34,6 +74,11 @@ async function searchIPONZ(browser, keyword) {
     await page.$eval(deno, el => { el.value = ''; });
     await page.type(deno, keyword, { delay: 60 });
     console.log(`[IPONZ] Typed "${keyword}"`);
+
+    if (await hasCaptchaChallenge(page)) {
+      await captureDebugPage(page, keyword);
+      throw new Error('IPONZ requires CAPTCHA validation before search; automated search skipped.');
+    }
 
     // Find the Search element by looking at every element's rendered text
     // Works regardless of element type (<a>, <button>, <div>, <span>, etc.)
@@ -89,6 +134,11 @@ async function searchIPONZ(browser, keyword) {
       page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 12000 }).catch(() => {}),
       sleep(10000)
     ]);
+
+    if (await hasCaptchaChallenge(page)) {
+      await captureDebugPage(page, keyword);
+      throw new Error('IPONZ requires CAPTCHA validation before search; automated search skipped.');
+    }
 
     // 1. Check for no-results message
     const noResults = await page.evaluate(() =>
@@ -176,6 +226,10 @@ async function searchIPONZ(browser, keyword) {
 
         return results;
       });
+    }
+
+    if (trademarks.length === 0) {
+      await captureDebugPage(page, keyword);
     }
 
     console.log(`[IPONZ] "${keyword}" — ${trademarks.length} result(s) extracted`);

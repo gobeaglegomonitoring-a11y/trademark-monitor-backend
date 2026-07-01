@@ -41,6 +41,17 @@ async function searchIPAustralia(browser, keyword) {
       page.keyboard.press('Enter')
     ]);
 
+    // Wait for Angular to render results before extracting
+    const resultReady = await Promise.race([
+      page.waitForSelector(
+        'tbody tr, [class*="result"], [class*="search-result"], .no-results, [class*="noResult"]',
+        { timeout: 12000 }
+      ).then(() => true).catch(() => false),
+      sleep(12000).then(() => false),
+    ]);
+    if (!resultReady) {
+      await page.waitForNetworkIdle({ idleTime: 1000, timeout: 8000 }).catch(() => {});
+    }
     await sleep(2000);
 
     // Extract trademark names from the HTML results table
@@ -93,9 +104,13 @@ async function searchIPAustralia(browser, keyword) {
     if (trademarks.length > 0) {
       console.log(`[IP-AU] Sample: ${JSON.stringify(trademarks[0])}`);
     } else {
-      // Dump HTML if still 0 results for further debugging
-      const html = await page.content();
-      console.log(`[IP-AU] HTML dump (first 2000): ${html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 2000)}`);
+      const pageText = await page.evaluate(() => (document.body?.innerText || '').slice(0, 800));
+      const isNoResults = /no results|no trade marks|0 results|no matching/i.test(pageText);
+      if (isNoResults) {
+        console.log(`[IP-AU] "${keyword}" — confirmed no results on IP Australia`);
+      } else {
+        console.log(`[IP-AU] Page text dump (first 800): ${pageText}`);
+      }
     }
 
     return trademarks;
