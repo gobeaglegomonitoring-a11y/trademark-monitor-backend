@@ -12,6 +12,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "puppeteer": {
+    "skipDownload": true
+  },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",
     "@supabase/supabase-js": "^2.108.2",
