@@ -93,14 +93,8 @@ async function withBrowserPage(platform, fn) {
   let browser;
 
   if (process.env.RENDER) {
-    const chromium      = require('@sparticuz/chromium');
-    const puppeteerCore = require('puppeteer-core');
-    browser = await puppeteerCore.launch({
-      args:            [...chromium.args, '--ignore-certificate-errors'],
-      defaultViewport: chromium.defaultViewport,
-      executablePath:  chromium.executablePath,
-      headless:        chromium.headless,
-    });
+    const { launchBrowser } = require('../lib/browser');
+    browser = await launchBrowser(['--ignore-certificate-errors']);
   } else {
     const { default: puppeteerExtra } = await import('puppeteer-extra');
     const { default: StealthPlugin }  = await import('puppeteer-extra-plugin-stealth');

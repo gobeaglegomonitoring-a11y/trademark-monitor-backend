@@ -6,6 +6,14 @@ const supabase = require('../lib/supabase');
 const DELAY_MS = 3000;
 const IPONZ_URL = 'https://app.iponz.govt.nz/app/Extra/Default.aspx?op=EXTRA_tm_qbe&fcoOp=EXTRA__Default&directAccess=true';
 
+class CaptchaSkipError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'CaptchaSkipError';
+    this.isCaptchaSkip = true;
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -77,7 +85,7 @@ async function searchIPONZ(browser, keyword) {
 
     if (await hasCaptchaChallenge(page)) {
       await captureDebugPage(page, keyword);
-      throw new Error('IPONZ requires CAPTCHA validation before search; automated search skipped.');
+      throw new CaptchaSkipError('IPONZ requires CAPTCHA validation before search; automated search skipped.');
     }
 
     // Find the Search element by looking at every element's rendered text
@@ -137,7 +145,7 @@ async function searchIPONZ(browser, keyword) {
 
     if (await hasCaptchaChallenge(page)) {
       await captureDebugPage(page, keyword);
-      throw new Error('IPONZ requires CAPTCHA validation before search; automated search skipped.');
+      throw new CaptchaSkipError('IPONZ requires CAPTCHA validation before search; automated search skipped.');
     }
 
     // 1. Check for no-results message
@@ -314,8 +322,12 @@ async function runIPONZScraper() {
           console.log(`[IPONZ] Match: "${filingName}" (score: ${score.toFixed(2)})`);
         }
       } catch (kwErr) {
-        console.error(`[IPONZ] Error scanning "${kw.term}":`, kwErr.message);
-        errorLog = kwErr.message;
+        if (kwErr.isCaptchaSkip) {
+          console.warn(`[IPONZ] Skipped "${kw.term}": ${kwErr.message}`);
+        } else {
+          console.error(`[IPONZ] Error scanning "${kw.term}":`, kwErr.message);
+          errorLog = kwErr.message;
+        }
       }
 
       await sleep(DELAY_MS);
