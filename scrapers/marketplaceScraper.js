@@ -90,14 +90,26 @@ async function captureDebugPage(page, platform, keyword) {
 }
 
 async function withBrowserPage(platform, fn) {
-  const { default: puppeteerExtra } = await import('puppeteer-extra');
-  const { default: StealthPlugin } = await import('puppeteer-extra-plugin-stealth');
-  puppeteerExtra.use(StealthPlugin());
+  let browser;
 
-  const browser = await puppeteerExtra.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--ignore-certificate-errors'],
-  });
+  if (process.env.RENDER) {
+    const chromium      = require('@sparticuz/chromium');
+    const puppeteerCore = require('puppeteer-core');
+    browser = await puppeteerCore.launch({
+      args:            [...chromium.args, '--ignore-certificate-errors'],
+      defaultViewport: chromium.defaultViewport,
+      executablePath:  await chromium.executablePath(),
+      headless:        chromium.headless,
+    });
+  } else {
+    const { default: puppeteerExtra } = await import('puppeteer-extra');
+    const { default: StealthPlugin }  = await import('puppeteer-extra-plugin-stealth');
+    puppeteerExtra.use(StealthPlugin());
+    browser = await puppeteerExtra.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--ignore-certificate-errors'],
+    });
+  }
 
   try {
     const page = await browser.newPage();
