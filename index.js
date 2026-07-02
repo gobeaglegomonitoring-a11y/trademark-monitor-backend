@@ -32,6 +32,7 @@ app.use('/api/matches', require('./routes/matches'));
 app.use('/api/scan-logs', require('./routes/scanLogs'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/scan',    require('./routes/scan'));
 // Test endpoints
 const { runEUIPOScraper } = require("./scrapers/euipoScraper");
 app.get("/api/test-euipo", async (req, res) => {

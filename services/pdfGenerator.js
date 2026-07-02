@@ -204,14 +204,27 @@ async function generatePDF({ keywords, dateFrom, dateTo, status }) {
   const matches = await fetchMatches({ keywords, dateFrom, dateTo, status });
   const html = buildHtml({ matches, keywords, dateFrom, dateTo });
 
-  const { default: puppeteerExtra } = await import('puppeteer-extra');
-  const { default: StealthPlugin }  = await import('puppeteer-extra-plugin-stealth');
-  puppeteerExtra.use(StealthPlugin());
+  let browser;
+  const isProduction = !!process.env.RENDER;
 
-  const browser = await puppeteerExtra.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  if (isProduction) {
+    const chromium      = require('@sparticuz/chromium');
+    const puppeteerCore = require('puppeteer-core');
+    browser = await puppeteerCore.launch({
+      args:            chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath:  await chromium.executablePath(),
+      headless:        chromium.headless,
+    });
+  } else {
+    const { default: puppeteerExtra } = await import('puppeteer-extra');
+    const { default: StealthPlugin }  = await import('puppeteer-extra-plugin-stealth');
+    puppeteerExtra.use(StealthPlugin());
+    browser = await puppeteerExtra.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+  }
 
   try {
     const page = await browser.newPage();

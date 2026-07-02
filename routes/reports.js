@@ -7,7 +7,7 @@ const { generatePDF } = require('../services/pdfGenerator');
 router.post('/pdf', async (req, res) => {
   try {
     const { keywords, dateFrom, dateTo, status } = req.body || {};
-    const pdf = await generatePDF({ keywords, dateFrom, dateTo, status });
+    const pdf = await generatePDF({ keywords, dateFrom, dateTo, status: status || 'new' });
 
     const filename = `trademark-report-${new Date().toISOString().slice(0, 10)}.pdf`;
     res.set({
