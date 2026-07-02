@@ -3,14 +3,14 @@
 # Trademark Monitor — Cyber Nexus
 
 ## RESOLVED (Successfully Scraped)
-State       | Method                        | Notes
-------------|-------------------------------|------------------------------------------
-TX          | Direct scrape                 | Confirmed inserts
-CO          | Direct scrape                 | Confirmed inserts
-NV          | Direct scrape                 | Confirmed inserts
-MT          | Direct scrape                 | Confirmed inserts
-CIPO (CA)   | TMview API (offices: ["CA"])  | Previously geo-blocked portal — RESOLVED via TMview
-UKIPO (GB)  | TMview API (offices: ["GB"])  | Previously blocked — RESOLVED via TMview
+State       | Method                        | Matches | Notes
+------------|-------------------------------|---------|------------------------------------------
+US-TX       | Direct scrape                 | 30      | Confirmed inserts
+US-CO       | Direct scrape                 | 41      | Confirmed inserts
+US-NV       | Direct scrape                 | 18      | Confirmed inserts
+US-MT       | Direct scrape                 | 27      | Confirmed inserts
+CIPO (CA)   | TMview API (offices: ["CA"])  | 112+    | Previously geo-blocked portal — RESOLVED via TMview
+UKIPO (GB)  | TMview API (offices: ["GB"])  | 53+     | Previously blocked — RESOLVED via TMview
 
 ## BLOCKED / NOT SCRAPEABLE
 State       | Reason                        | Notes
@@ -64,8 +64,8 @@ WY          | No public API                 | No accessible search endpoint
 
 ## SUMMARY
 Total states targeted:     50
-Successfully scraped:      4 (TX, CO, NV, MT)
-Resolved via TMview:       2 (CIPO/CA, UKIPO/GB)
+Successfully scraped:      4 (TX, CO, NV, MT) — 116 total matches
+Resolved via TMview:       2 (CIPO/CA = 112+ matches, UKIPO/GB = 53+ matches)
 Blocked / not accessible:  46
 Coverage rate:             ~8% of US states directly
 
