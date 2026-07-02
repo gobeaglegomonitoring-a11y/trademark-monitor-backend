@@ -213,7 +213,9 @@ async function generatePDF({ keywords, dateFrom, dateTo, status }) {
     browser = await puppeteerCore.launch({
       args:            chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath:  await chromium.executablePath(),
+      executablePath: typeof chromium.executablePath === 'function' 
+      ? await chromium.executablePath() 
+      : chromium.executablePath,
       headless:        chromium.headless,
     });
   } else {
