@@ -98,7 +98,7 @@ async function withBrowserPage(platform, fn) {
     browser = await puppeteerCore.launch({
       args:            [...chromium.args, '--ignore-certificate-errors'],
       defaultViewport: chromium.defaultViewport,
-      executablePath:  await chromium.executablePath(),
+      executablePath:  chromium.executablePath,
       headless:        chromium.headless,
     });
   } else {
