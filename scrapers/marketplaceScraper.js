@@ -584,7 +584,7 @@ async function runMarketplaceScraper() {
       await supabase.from('scan_logs').update({
         completed_at: new Date().toISOString(),
         total_found: totalInserted,
-        error_log: errorLog,
+        error_log: totalInserted > 0 ? null : errorLog,
       }).eq('id', logId);
     }
 
