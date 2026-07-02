@@ -20,6 +20,7 @@ router.post('/runall', async (req, res) => {
     { name: 'iponz',      fn: () => require('../scrapers/iponzScraper').runIPONZScraper() },
     { name: 'ukipo',      fn: () => require('../scrapers/ukipoScraper').runUKIPOScraper() },
     { name: 'cipo',       fn: () => require('../scrapers/cipoScraper').runCIPOScraper() },
+    { name: 'us_states',  fn: () => require('../scrapers/usStatesScraper').runUSStatesScraper() },
     { name: 'domains',    fn: () => require('../scrapers/domainScraper').runDomainScraper() },
     { name: 'marketplace',fn: () => require('../scrapers/marketplaceScraper').runMarketplaceScraper() },
     { name: 'social',     fn: () => require('../scrapers/socialScraper').runSocialScraper() },
