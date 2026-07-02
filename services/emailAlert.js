@@ -1,10 +1,8 @@
 const nodemailer = require("nodemailer");
 const supabase = require("../lib/supabase");
 
-// ── Recipient(s) for testing — replace with alert_settings table once built ──
-const TEST_RECIPIENTS = process.env.ALERT_TEST_RECIPIENTS
-  ? process.env.ALERT_TEST_RECIPIENTS.split(",").map((e) => e.trim())
-  : []; // fallback empty — must be set in .env, see note below
+// Same fixed row ID used by routes/settings.js — there's only ever one settings row.
+const SETTINGS_ID = "00000000-0000-0000-0000-000000000001";
 
 // ── Build transporter using existing Gmail SMTP creds ────────────────────────
 function getTransporter() {
@@ -15,6 +13,22 @@ function getTransporter() {
       pass: process.env.SMTP_PASS,
     },
   });
+}
+
+// ── Load recipient + on/off flag from alert_settings (set via Settings page) ─
+async function getAlertSettings() {
+  const { data, error } = await supabase
+    .from("alert_settings")
+    .select("email, alert_enabled")
+    .eq("id", SETTINGS_ID)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[EmailAlert] Failed to load alert_settings:", error.message);
+    return { email: null, alert_enabled: false };
+  }
+
+  return data || { email: null, alert_enabled: false };
 }
 
 // ── Count + fetch new matches across all 4 tables ─────────────────────────────
@@ -145,17 +159,24 @@ function escapeHtml(str) {
 async function sendAlertIfNewMatches() {
   console.log("[EmailAlert] Checking for new matches...");
 
+  const settings = await getAlertSettings();
+
+  if (!settings.alert_enabled) {
+    console.log("[EmailAlert] Alerts are disabled in Settings. Skipping.");
+    return { sent: false, count: 0, reason: "Alerts disabled" };
+  }
+
+  if (!settings.email) {
+    console.error("[EmailAlert] No alert email configured in Settings.");
+    return { sent: false, count: 0, error: "No recipient configured" };
+  }
+
   const matches = await getNewMatches();
   const count = matches.length;
 
   if (count === 0) {
     console.log("[EmailAlert] No new matches found. Skipping email.");
     return { sent: false, count: 0 };
-  }
-
-  if (TEST_RECIPIENTS.length === 0) {
-    console.error("[EmailAlert] No recipients configured. Set ALERT_TEST_RECIPIENTS in .env (comma-separated).");
-    return { sent: false, count, error: "No recipients configured" };
   }
 
   const today = new Date().toLocaleDateString("en-GB", {
@@ -171,12 +192,18 @@ async function sendAlertIfNewMatches() {
     const transporter = getTransporter();
     await transporter.sendMail({
       from: `"Trademark Monitor" <${process.env.SMTP_USER}>`,
-      to: TEST_RECIPIENTS.join(","),
+      to: settings.email,
       subject,
       html,
     });
 
-    console.log(`[EmailAlert] Sent email to ${TEST_RECIPIENTS.join(", ")} — ${count} new match(es).`);
+    console.log(`[EmailAlert] Sent email to ${settings.email} — ${count} new match(es).`);
+
+    await supabase
+      .from("alert_settings")
+      .update({ last_alerted_at: new Date().toISOString() })
+      .eq("id", SETTINGS_ID);
+
     return { sent: true, count };
   } catch (err) {
     console.error("[EmailAlert] Failed to send email:", err.message);

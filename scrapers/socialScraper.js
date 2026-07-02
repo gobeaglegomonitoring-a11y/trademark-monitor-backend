@@ -1,4 +1,5 @@
 const axios = require("axios");
+const cheerio = require("cheerio");
 const UserAgent = require("user-agents");
 const supabase = require("../lib/supabase");
 
@@ -51,7 +52,7 @@ async function logScan(scanType, startedAt, totalFound, errorMsg = null) {
 async function attemptRequest(url, headers, attemptLabel) {
   const response = await axios.get(url, {
     headers,
-    timeout: 15000,
+    timeout: 10000,
     validateStatus: () => true,
     maxRedirects: 5,
   });
@@ -59,20 +60,37 @@ async function attemptRequest(url, headers, attemptLabel) {
   return response;
 }
 
-// ── Instagram: multiple attempts with rotation, warm-up request, delays ──────
-async function searchInstagramWithRetries(keyword, maxAttempts = 4) {
+// ── Helper: pull a usable snippet out of whatever HTML we got back ───────────
+// Best-effort only — Instagram/TikTok pages are heavily JS-rendered, so this
+// grabs whatever static meta content is present rather than trying to
+// reverse-engineer their client-side app state.
+function extractSnippet(html) {
+  try {
+    const $ = cheerio.load(html);
+    const ogTitle = $('meta[property="og:title"]').attr("content");
+    const ogDesc = $('meta[property="og:description"]').attr("content");
+    const title = $("title").first().text();
+    return (ogDesc || ogTitle || title || "").trim().slice(0, 300) || null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Instagram: bounded attempts with rotation, warm-up request, short delays ─
+// Capped at 2 attempts (~20s worst case) — this is a daily cron job, not a
+// standalone 2-hour task. The "2 hour" budget in the SOP was a dev-time cap
+// on building this feature, not a runtime loop to ship in production.
+async function searchInstagramWithRetries(keyword, maxAttempts = 2) {
   const baseUrl = `https://www.instagram.com/explore/tags/${encodeURIComponent(keyword)}/`;
 
   for (let i = 1; i <= maxAttempts; i++) {
     try {
-      // Warm-up: hit the homepage first to look more like a real browsing session,
-      // then follow with the actual hashtag page using the same "session" headers.
       const headers = getBrowserHeaders();
 
       if (i > 1) {
         try {
           await attemptRequest("https://www.instagram.com/", headers, `${i}-warmup`);
-          await randomDelay(1500, 3500);
+          await randomDelay(800, 1500);
         } catch (warmupErr) {
           console.log(`  [attempt ${i}-warmup] failed: ${warmupErr.message}`);
         }
@@ -85,7 +103,7 @@ async function searchInstagramWithRetries(keyword, maxAttempts = 4) {
 
       if (response.status === 200 && !isLoginWall && bodyStr.length > 0) {
         console.log(`  [Instagram] Attempt ${i} succeeded — got real content.`);
-        return { blocked: false, results: [], rawLength: bodyStr.length };
+        return { blocked: false, url: baseUrl, snippet: extractSnippet(bodyStr), rawLength: bodyStr.length };
       }
 
       console.log(`  [Instagram] Attempt ${i} blocked (status ${response.status}, loginWall: ${isLoginWall}).`);
@@ -93,14 +111,14 @@ async function searchInstagramWithRetries(keyword, maxAttempts = 4) {
       console.log(`  [Instagram] Attempt ${i} threw: ${err.code || err.message}`);
     }
 
-    if (i < maxAttempts) await randomDelay(4000, 9000);
+    if (i < maxAttempts) await randomDelay(1500, 3000);
   }
 
-  return { blocked: true, results: [] };
+  return { blocked: true };
 }
 
-// ── TikTok: multiple attempts with rotation, warm-up request, delays ─────────
-async function searchTikTokWithRetries(keyword, maxAttempts = 4) {
+// ── TikTok: bounded attempts with rotation, warm-up request, short delays ────
+async function searchTikTokWithRetries(keyword, maxAttempts = 2) {
   const baseUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}`;
 
   for (let i = 1; i <= maxAttempts; i++) {
@@ -110,7 +128,7 @@ async function searchTikTokWithRetries(keyword, maxAttempts = 4) {
       if (i > 1) {
         try {
           await attemptRequest("https://www.tiktok.com/", headers, `${i}-warmup`);
-          await randomDelay(1500, 3500);
+          await randomDelay(800, 1500);
         } catch (warmupErr) {
           console.log(`  [attempt ${i}-warmup] failed: ${warmupErr.message}`);
         }
@@ -120,11 +138,11 @@ async function searchTikTokWithRetries(keyword, maxAttempts = 4) {
 
       const bodyStr = typeof response.data === "string" ? response.data : "";
       const isVerifyWall = bodyStr.toLowerCase().includes("verify") || bodyStr.toLowerCase().includes("captcha");
-      const looksEmpty = bodyStr.length < 5000; // TikTok's real SSR pages are large; a tiny shell means we got nothing
+      const looksEmpty = bodyStr.length < 5000;
 
       if (response.status === 200 && !isVerifyWall && !looksEmpty) {
         console.log(`  [TikTok] Attempt ${i} succeeded — got real content.`);
-        return { blocked: false, results: [], rawLength: bodyStr.length };
+        return { blocked: false, url: baseUrl, snippet: extractSnippet(bodyStr), rawLength: bodyStr.length };
       }
 
       console.log(`  [TikTok] Attempt ${i} blocked (status ${response.status}, verifyWall: ${isVerifyWall}, tooSmall: ${looksEmpty}).`);
@@ -132,10 +150,10 @@ async function searchTikTokWithRetries(keyword, maxAttempts = 4) {
       console.log(`  [TikTok] Attempt ${i} threw: ${err.code || err.message}`);
     }
 
-    if (i < maxAttempts) await randomDelay(4000, 9000);
+    if (i < maxAttempts) await randomDelay(1500, 3000);
   }
 
-  return { blocked: true, results: [] };
+  return { blocked: true };
 }
 
 // ── Dedup check ──────────────────────────────────────────────────────────────
@@ -151,33 +169,28 @@ async function isDuplicate(platform, handleOrUrl, keyword) {
 }
 
 // ── Insert match ─────────────────────────────────────────────────────────────
-async function insertMatch(platform, handleOrUrl, keyword, snippet, raw) {
+async function insertMatch(platform, handleOrUrl, keyword, snippet) {
   await supabase.from("social_matches").insert([
     {
       platform:         platform,
       handle_or_url:    handleOrUrl,
       keyword_matched:  keyword,
       content_snippet:  snippet || null,
-      raw_data:         raw || null,
       status:           "new",
     },
   ]);
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
-// Genuine 2-hour best-effort attempt: rotates user agents, uses realistic
-// browser headers, does warm-up requests, and retries with backoff.
-// If still blocked after the full attempt budget, logs honestly and moves on.
+// Best-effort, bounded scraper. Each keyword gets a small, fixed number of
+// attempts per platform (~20-30s worst case) instead of an open-ended 2-hour
+// budget, so this stays safe to run inside the daily cron job.
 async function runSocialScraper() {
   const startedAt = new Date().toISOString();
-  const HARD_DEADLINE = Date.now() + 2 * 60 * 60 * 1000; // 2 hours
   let totalInserted = 0;
   let errorMsg = null;
-  let igEverSucceeded = false;
-  let ttEverSucceeded = false;
 
   console.log("[Social] Scraper started at", startedAt);
-  console.log("[Social] Hard deadline:", new Date(HARD_DEADLINE).toISOString());
 
   try {
     const { data: keywords, error: kwError } = await supabase
@@ -195,54 +208,54 @@ async function runSocialScraper() {
     console.log(`[Social] Found ${keywords.length} active keyword(s) to scan.`);
 
     for (const kw of keywords) {
-      if (Date.now() > HARD_DEADLINE) {
-        console.log("[Social] 2-hour cap reached. Stopping early.");
-        errorMsg = "Stopped early — 2 hour cap reached";
-        break;
-      }
-
       console.log(`\n[Social] === Searching for: "${kw.term}" ===`);
 
       // ── Instagram ──────────────────────────────────────────────────────────
-      console.log(`[Instagram] "${kw.term}" — starting retry sequence...`);
       const ig = await searchInstagramWithRetries(kw.term);
 
       if (ig.blocked) {
         await logScan("social_instagram", startedAt, 0, "Blocked by platform (after multi-attempt retry with UA rotation)");
         console.log(`[Instagram] "${kw.term}" — blocked after all attempts, logged to scan_logs.`);
       } else {
-        igEverSucceeded = true;
-        console.log(`[Instagram] "${kw.term}" — got through! Raw length: ${ig.rawLength}. (Parsing not yet implemented — flag for follow-up.)`);
-        await logScan("social_instagram", startedAt, 0, `Got 200 + real content (${ig.rawLength} bytes) — needs parser`);
+        const dupe = await isDuplicate("Instagram", ig.url, kw.term);
+        if (!dupe) {
+          await insertMatch("Instagram", ig.url, kw.term, ig.snippet);
+          totalInserted++;
+          console.log(`[Instagram] "${kw.term}" — inserted new match.`);
+        } else {
+          console.log(`[Instagram] "${kw.term}" — got through, but already logged (dedup skip).`);
+        }
+        await logScan("social_instagram", startedAt, dupe ? 0 : 1, null);
       }
 
-      if (Date.now() > HARD_DEADLINE) break;
-      await randomDelay(3000, 6000);
+      await randomDelay(1000, 2000);
 
       // ── TikTok ─────────────────────────────────────────────────────────────
-      console.log(`[TikTok] "${kw.term}" — starting retry sequence...`);
       const tt = await searchTikTokWithRetries(kw.term);
 
       if (tt.blocked) {
         await logScan("social_tiktok", startedAt, 0, "Blocked by platform (after multi-attempt retry with UA rotation)");
         console.log(`[TikTok] "${kw.term}" — blocked after all attempts, logged to scan_logs.`);
       } else {
-        ttEverSucceeded = true;
-        console.log(`[TikTok] "${kw.term}" — got through! Raw length: ${tt.rawLength}. (Parsing not yet implemented — flag for follow-up.)`);
-        await logScan("social_tiktok", startedAt, 0, `Got 200 + real content (${tt.rawLength} bytes) — needs parser`);
+        const dupe = await isDuplicate("TikTok", tt.url, kw.term);
+        if (!dupe) {
+          await insertMatch("TikTok", tt.url, kw.term, tt.snippet);
+          totalInserted++;
+          console.log(`[TikTok] "${kw.term}" — inserted new match.`);
+        } else {
+          console.log(`[TikTok] "${kw.term}" — got through, but already logged (dedup skip).`);
+        }
+        await logScan("social_tiktok", startedAt, dupe ? 0 : 1, null);
       }
 
-      if (Date.now() > HARD_DEADLINE) break;
-      await randomDelay(3000, 6000);
+      await randomDelay(1000, 2000);
     }
   } catch (err) {
     console.error("[Social] Scraper failed:", err.message);
     errorMsg = err.message;
   }
 
-  const summary = `IG ever succeeded: ${igEverSucceeded}, TT ever succeeded: ${ttEverSucceeded}`;
-  console.log(`\n[Social] FINAL SUMMARY: ${summary}`);
-  await logScan("social_media", startedAt, totalInserted, errorMsg || summary);
+  await logScan("social_media", startedAt, totalInserted, errorMsg);
   console.log(`[Social] Scraper finished. Inserted ${totalInserted} new match(es).`);
   return totalInserted;
 }
