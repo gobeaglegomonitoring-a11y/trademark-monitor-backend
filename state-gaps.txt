@@ -1,0 +1,79 @@
+# US State Trademark / Business Registry — Coverage Report
+# Generated: July 2, 2026
+# Trademark Monitor — Cyber Nexus
+
+## RESOLVED (Successfully Scraped)
+State       | Method                        | Notes
+------------|-------------------------------|------------------------------------------
+TX          | Direct scrape                 | Confirmed inserts
+CO          | Direct scrape                 | Confirmed inserts
+NV          | Direct scrape                 | Confirmed inserts
+MT          | Direct scrape                 | Confirmed inserts
+CIPO (CA)   | TMview API (offices: ["CA"])  | Previously geo-blocked portal — RESOLVED via TMview
+UKIPO (GB)  | TMview API (offices: ["GB"])  | Previously blocked — RESOLVED via TMview
+
+## BLOCKED / NOT SCRAPEABLE
+State       | Reason                        | Notes
+------------|-------------------------------|------------------------------------------
+AL          | Login required                | Alabama SOS requires account login
+AK          | No public search API          | No accessible public search endpoint
+AZ          | CAPTCHA / bot detection       | Blocks automated requests
+AR          | Login required                | Requires account registration
+CA          | Rate limiting + CAPTCHA       | California SOS blocks automated access
+CT          | Session-based auth            | Requires interactive session
+DE          | CAPTCHA                       | Delaware blocks automated requests
+FL          | Rate limiting                 | Blocks after first few requests
+GA          | Login required                | Requires account
+HI          | No public API                 | No accessible search endpoint
+ID          | CAPTCHA                       | Blocks automated requests
+IL          | Session-based                 | Requires interactive browser session
+IN          | Login required                | Requires account registration
+IA          | CAPTCHA                       | Blocks automated requests
+KS          | Login required                | Requires account
+KY          | CAPTCHA / bot detection       | Blocks automated requests
+LA          | Login required                | Requires account
+ME          | No public API                 | No accessible search endpoint
+MD          | CAPTCHA                       | Blocks automated requests
+MA          | Session-based                 | Requires interactive session
+MI          | Login required                | Requires account
+MN          | CAPTCHA                       | Blocks automated requests
+MS          | No public API                 | No accessible search endpoint
+MO          | Login required                | Requires account
+NE          | CAPTCHA                       | Blocks automated requests
+NH          | No public API                 | No accessible search endpoint
+NJ          | Rate limiting + CAPTCHA       | Blocks automated requests
+NM          | Login required                | Requires account
+NY          | CAPTCHA / bot detection       | Blocks automated requests
+NC          | Session-based                 | Requires interactive session
+ND          | No public API                 | No accessible search endpoint
+OH          | Login required                | Requires account
+OK          | CAPTCHA                       | Blocks automated requests
+OR          | Rate limiting                 | Blocks after first few requests
+PA          | CAPTCHA / bot detection       | Blocks automated requests
+RI          | No public API                 | No accessible search endpoint
+SC          | Login required                | Requires account
+SD          | No public API                 | No accessible search endpoint
+TN          | CAPTCHA                       | Blocks automated requests
+UT          | Session-based                 | Requires interactive session
+VT          | No public API                 | No accessible search endpoint
+VA          | CAPTCHA / bot detection       | Blocks automated requests
+WA          | Rate limiting                 | Blocks after first few requests
+WV          | No public API                 | No accessible search endpoint
+WI          | Login required                | Requires account
+WY          | No public API                 | No accessible search endpoint
+
+## SUMMARY
+Total states targeted:     50
+Successfully scraped:      4 (TX, CO, NV, MT)
+Resolved via TMview:       2 (CIPO/CA, UKIPO/GB)
+Blocked / not accessible:  46
+Coverage rate:             ~8% of US states directly
+
+## NOTES
+- TMview (tmdn.org) provides indirect access to CIPO and UKIPO which were
+  previously blocked at the portal level. This is the recommended fallback
+  for any registry that blocks direct access.
+- Blocked states primarily use login-gated portals or aggressive CAPTCHA.
+  Future improvement: authenticated sessions or commercial data providers
+  (e.g. CT Corp, Harvard Business Services) for broader state coverage.
+- Federal USPTO coverage is complete and unblocked.
