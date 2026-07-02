@@ -207,18 +207,21 @@ async function generatePDF({ keywords, dateFrom, dateTo, status }) {
   let browser;
   const isProduction = !!process.env.RENDER;
 
-  if (isProduction) {
-    const chromium      = require('@sparticuz/chromium');
-    const puppeteerCore = require('puppeteer-core');
-    browser = await puppeteerCore.launch({
-      args:            chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: typeof chromium.executablePath === 'function' 
-      ? await chromium.executablePath() 
-      : chromium.executablePath,
-      headless:        chromium.headless,
-    });
-  } else {
+        if (isProduction) {
+      const puppeteerCore = require('puppeteer-core');
+      browser = await puppeteerCore.launch({
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+        ],
+        executablePath: '/usr/bin/google-chrome-stable',
+        headless: true,
+      });
+    } else {
     const { default: puppeteerExtra } = await import('puppeteer-extra');
     const { default: StealthPlugin }  = await import('puppeteer-extra-plugin-stealth');
     puppeteerExtra.use(StealthPlugin());
