@@ -135,17 +135,8 @@ async function scrapeWithASPNET(state, keyword) {
 
 // ── BROWSER BRANCH (Puppeteer — SPAs, 403 sites, JS-rendered) ───────────────
 async function scrapeWithBrowser(state, keyword) {
-  const { default: puppeteer } = await import('puppeteer');
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--ignore-certificate-errors',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-web-security',
-    ],
-  });
+  const { launchBrowser } = require('../lib/browser');
+  const browser = await launchBrowser(['--ignore-certificate-errors', '--disable-blink-features=AutomationControlled', '--disable-web-security']);
 
   try {
     const page = await browser.newPage();

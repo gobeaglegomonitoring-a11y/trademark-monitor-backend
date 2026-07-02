@@ -158,11 +158,8 @@ async function runIPAustraliaScraper() {
 
     console.log(`[IP-AU] Scanning ${keywords.length} keyword(s)...`);
 
-    const { default: puppeteer } = await import('puppeteer');
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    const { launchBrowser } = require('../lib/browser');
+    const browser = await launchBrowser();
 
     for (const kw of keywords) {
       try {

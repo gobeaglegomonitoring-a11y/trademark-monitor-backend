@@ -267,11 +267,8 @@ async function runEUIPOScraper() {
 
         if (useBrowser) {
           if (!browser) {
-            const { default: puppeteer } = await import("puppeteer");
-            browser = await puppeteer.launch({
-              headless: true,
-              args: ["--no-sandbox", "--disable-setuid-sandbox"],
-            });
+            const { launchBrowser } = require('../lib/browser');
+            browser = await launchBrowser();
           }
           hits = await searchEUIPOviaBrowser(browser, kw.term);
         }
