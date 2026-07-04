@@ -81,9 +81,9 @@ app.get("/api/test-us-states", async (req, res) => {
   res.json({ message: `US States scan complete. ${total} new match(es) found.` });
 });
 
-const { runUSStatesScraper } = require("./scrapers/usStatesScraper");
+const { runUSStateScraper: runUSStatesScraperV1 } = require("./scrapers/usStateScraper");
 app.get("/api/test-us-states-v1", async (req, res) => {
-  const total = await runUSStatesScraper();
+  const total = await runUSStatesScraperV1();
   res.json({ message: `US States (v1) scan complete. ${total} new match(es) found.` });
 });
 

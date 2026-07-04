@@ -1,24 +1,36 @@
 AL  Alabama              | axios error: timeout of 12000ms exceeded
 AL  Alabama              | axios error: timeout of 12000ms exceeded
 AL  Alabama              | axios error: timeout of 12000ms exceeded
+AL  Alabama              | axios error: timeout of 12000ms exceeded
 AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
 AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
 AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
 CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
 CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
 CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
-ME  Maine                | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
-ME  Maine                | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
-ME  Maine                | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps3.web.maine.gov/nei-sos-icrs/ICRS
+CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
+GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
+GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
+GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
+GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
+HI  Hawaii               | axios error: Request failed with status code 503
+HI  Hawaii               | axios error: Request failed with status code 503
+HI  Hawaii               | axios error: Request failed with status code 503
+HI  Hawaii               | axios error: Request failed with status code 503
+MN  Minnesota            | browser error: net::ERR_NETWORK_CHANGED at https://mblsportal.sos.state.mn.us/Business/Search
+ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
 ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
 ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
 ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
 SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
 SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
 SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
+SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
 VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
 VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
 VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
+VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
+WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
 WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
 WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
 WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
