@@ -8,6 +8,20 @@ const path = require('path');
 
 const states = require('../config/usStates.json');
 
+function getSupportedStates(code) {
+  const active = states.filter(s => s.accessible);
+  if (!code) return active;
+
+  const normalized = String(code).trim().toUpperCase();
+  return active.filter(s => s.code === normalized);
+}
+
+function getUnsupportedStates() {
+  return states
+    .filter(s => !s.accessible)
+    .map(s => ({ code: s.code, state: s.state, reason: s.notes }));
+}
+
 const BASE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -254,15 +268,25 @@ async function insertIfNew(registry, filingName, keyword, score) {
 }
 
 // ── MAIN RUNNER ──────────────────────────────────────────────────────────────
-async function runUSStateScraper() {
-  console.log('[US-STATES] Starting US state registry scan...');
+async function runUSStateScraper(code = null) {
+  const selectedCode = code ? String(code).trim().toUpperCase() : null;
+  console.log(selectedCode
+    ? `[US-STATES] Starting ${selectedCode} state registry scan...`
+    : '[US-STATES] Starting supported US state registry scan...');
 
-  const blocked = states.filter(s => !s.accessible);
-  const active  = states.filter(s => s.accessible);
+  const active = getSupportedStates(selectedCode);
+  if (selectedCode && active.length === 0) {
+    const knownState = states.find(s => s.code === selectedCode);
+    const reason = knownState
+      ? getUnsupportedStates().find(s => s.code === selectedCode)?.reason || knownState.notes
+      : 'Unknown state code.';
+    throw new Error(`US-${selectedCode} is not enabled for scraping: ${reason}`);
+  }
 
-  if (blocked.length) {
-    console.log(`[US-STATES] Truly blocked (${blocked.length}): ${
-      blocked.map(s => `${s.code} (${s.notes})`).join(' | ')
+  const unsupported = getUnsupportedStates();
+  if (!selectedCode && unsupported.length) {
+    console.log(`[US-STATES] Not enabled (${unsupported.length}): ${
+      unsupported.map(s => `${s.code} (${s.reason})`).join(' | ')
     }`);
   }
   console.log(`[US-STATES] Scanning ${active.length} states (${
@@ -277,7 +301,7 @@ async function runUSStateScraper() {
 
   const { data: logEntry } = await supabase
     .from('scan_logs')
-    .insert([{ scan_type: 'trademark', started_at: new Date().toISOString() }])
+    .insert([{ scan_type: selectedCode ? `trademark_us_${selectedCode.toLowerCase()}` : 'trademark_us_states', started_at: new Date().toISOString() }])
     .select().single();
   const logId = logEntry?.id;
 
@@ -334,7 +358,9 @@ async function runUSStateScraper() {
     }
   }
 
-  blocked.forEach(s => gaps.push(`${s.code.padEnd(3)} ${s.state.padEnd(20)} | BLOCKED: ${s.notes}`));
+  if (!selectedCode) {
+    unsupported.forEach(s => gaps.push(`${s.code.padEnd(3)} ${s.state.padEnd(20)} | NOT ENABLED: ${s.reason}`));
+  }
 
   fs.writeFileSync(path.join(__dirname, '../data/state-gaps.txt'), gaps.join('\n'), 'utf8');
 
@@ -360,4 +386,4 @@ async function runUSStateScraper() {
   return totalFound;
 }
 
-module.exports = { runUSStateScraper };
+module.exports = { runUSStateScraper, getUnsupportedStates };

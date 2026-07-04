@@ -1,41 +1,43 @@
-AL  Alabama              | axios error: timeout of 12000ms exceeded
-AL  Alabama              | axios error: timeout of 12000ms exceeded
-AL  Alabama              | axios error: timeout of 12000ms exceeded
-AL  Alabama              | axios error: timeout of 12000ms exceeded
-AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
-AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
-AZ  Arizona              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.azcc.gov/BusinessSearch/Business
-CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
-CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
-CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
-CA  California           | browser error: net::ERR_NAME_NOT_RESOLVED at https://businesssearch.sos.ca.gov/
-GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
-GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
-GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
-GA  Georgia              | browser error: net::ERR_NAME_NOT_RESOLVED at https://ecorp.sos.ga.gov/BusinessSearch
-HI  Hawaii               | axios error: Request failed with status code 503
-HI  Hawaii               | axios error: Request failed with status code 503
-HI  Hawaii               | axios error: Request failed with status code 503
-HI  Hawaii               | axios error: Request failed with status code 503
-MN  Minnesota            | browser error: net::ERR_NETWORK_CHANGED at https://mblsportal.sos.state.mn.us/Business/Search
-ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
-ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
-ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
-ND  North Dakota         | browser error: net::ERR_CONNECTION_TIMED_OUT at https://firststop.sos.nd.gov/search/business
-SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
-SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
-SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
-SC  South Carolina       | browser error: net::ERR_CONNECTION_TIMED_OUT at https://businessfilings.sc.gov/BusinessFiling/Entity/Search
-VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
-VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
-VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
-VA  Virginia             | browser error: net::ERR_TIMED_OUT at https://cis.scc.virginia.gov/EntitySearch/Index
-WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
-WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
-WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
-WI  Wisconsin            | browser error: net::ERR_CONNECTION_TIMED_OUT at https://apps.dfi.wi.gov/apps/corpsearch/search.aspx
-DE  Delaware             | BLOCKED: CAPTCHA on all automated queries — permanently blocked
-IA  Iowa                 | BLOCKED: Public API costs $2,400/yr; HTML portal requires session tokens — permanently blocked
-LA  Louisiana            | BLOCKED: CAPTCHA required on all search requests — permanently blocked
-WA  Washington           | BLOCKED: esos.wa.gov API is DNS-dead; ccfs.sos.wa.gov Angular SPA blocks automation — deferred
-WY  Wyoming              | BLOCKED: Restricts API access; session-heavy forms requiring human interaction — permanently blocked
+AL  Alabama              | NOT ENABLED: axios flow is not stable enough for unattended scraping on Render; CGI GET — returns HTML table of matches
+AK  Alaska               | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Browser — 403 on plain axios; Puppeteer bypasses
+AZ  Arizona              | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Angular SPA — Puppeteer required
+CA  California           | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; React SPA — Puppeteer required
+CT  Connecticut          | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Salesforce SPA — Puppeteer required
+DE  Delaware             | NOT ENABLED: CAPTCHA on all automated queries — permanently blocked
+DC  District of Columbia | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; DCRA portal — Puppeteer required
+FL  Florida              | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Sunbiz — 403 on axios; Puppeteer bypasses bot detection
+GA  Georgia              | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Angular SPA — Puppeteer required
+HI  Hawaii               | NOT ENABLED: axios flow is not stable enough for unattended scraping on Render; Standard HTML GET form
+ID  Idaho                | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; React SPA — Puppeteer required
+IL  Illinois             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; JSP — 403 on plain GET; Puppeteer bypasses
+IN  Indiana              | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Server-rendered — 403 on axios; Puppeteer bypasses
+IA  Iowa                 | NOT ENABLED: Public API costs $2,400/yr; HTML portal requires session tokens — permanently blocked
+KS  Kansas               | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; ASP.NET — 405 on axios POST; Puppeteer fills and submits form
+KY  Kentucky             | NOT ENABLED: aspnet flow is not stable enough for unattended scraping on Render; ASP.NET WebForms — GET→POST with ViewState
+LA  Louisiana            | NOT ENABLED: CAPTCHA required on all search requests — permanently blocked
+ME  Maine                | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Legacy portal — axios times out; Puppeteer allows longer wait
+MD  Maryland             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; React SPA — Puppeteer required
+MA  Massachusetts        | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Incapsula WAF blocks all axios (200 OK bot-detection page); Puppeteer stealth bypasses
+MI  Michigan             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Angular SPA — Puppeteer required
+MN  Minnesota            | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; GET returns same 35 results regardless of term — use browser to properly submit form
+MS  Mississippi          | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; ASP.NET portal — 403 on axios; Puppeteer bypasses
+MO  Missouri             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; ASP.NET — 403 on POST; Puppeteer bypasses
+NH  New Hampshire        | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Portal — 403 on axios; Puppeteer bypasses
+NM  New Mexico           | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Enterprise SPA — Puppeteer required
+NY  New York             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; ECONNRESET on axios; Puppeteer bypasses
+NC  North Carolina       | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; 404 on direct GET; browser navigates correctly
+ND  North Dakota         | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; React SPA — Puppeteer required
+OH  Ohio                 | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; 403 on axios; Puppeteer bypasses
+OK  Oklahoma             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; SSL cert error on axios; Puppeteer ignores SSL
+OR  Oregon               | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Both known Socrata IDs return 404; using browser on SOS search page
+PA  Pennsylvania         | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; React SPA — Puppeteer required
+RI  Rhode Island         | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Trademark-specific search; submit is a LinkButton (not <input type=submit>); radio must be clicked first to select trademark-name search mode
+SC  South Carolina       | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Angular SPA — Puppeteer required
+SD  South Dakota         | NOT ENABLED: aspnet flow is not stable enough for unattended scraping on Render; ASP.NET WebForms
+TN  Tennessee            | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; React SPA — Puppeteer required
+UT  Utah                 | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; SilverFlume-style SPA — Puppeteer required
+VT  Vermont              | NOT ENABLED: axios flow is not stable enough for unattended scraping on Render; Server-rendered HTML
+VA  Virginia             | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; Axios times out; Puppeteer waits correctly
+WA  Washington           | NOT ENABLED: esos.wa.gov API is DNS-dead; ccfs.sos.wa.gov Angular SPA blocks automation — deferred
+WI  Wisconsin            | NOT ENABLED: browser flow is not stable enough for unattended scraping on Render; ASP.NET — axes times out; Puppeteer fills form correctly
+WY  Wyoming              | NOT ENABLED: Restricts API access; session-heavy forms requiring human interaction — permanently blocked

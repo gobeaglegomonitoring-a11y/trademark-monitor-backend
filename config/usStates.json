@@ -2,9 +2,16 @@
   {
     "state": "Alabama", "code": "AL",
     "url": "https://arc-sos.state.al.us/cgi/corpname.mbr/output",
-    "method": "axios", "searchParam": "name",
-    "extraParams": { "search_type": "bn" },
-    "accessible": true, "notes": "CGI GET — returns HTML table of matches"
+    "method": "browser", "searchParam": "name",
+    "searchInput": "input[name='name'], input[placeholder*='name' i], input[type='text'], input[type='search']",
+    "searchSubmit": "input[type='submit'], button[type='submit'], input[value*='Search' i]",
+    "waitUntil": "domcontentloaded",
+    "navigationTimeout": 60000,
+    "selectorTimeout": 12000,
+    "actionTimeout": 40000,
+    "settleDelay": 4000,
+    "retries": 1,
+    "accessible": true, "notes": "CGI — axios returns empty table; browser fills form and waits for render"
   },
   {
     "state": "Alaska", "code": "AK",
@@ -31,8 +38,13 @@
     "state": "California", "code": "CA",
     "url": "https://businesssearch.sos.ca.gov/",
     "method": "browser", "searchParam": "businessName",
-    "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
-    "accessible": true, "notes": "React SPA — Puppeteer required"
+    "searchInput": "input[name='businessName'], input#businessName, input[placeholder*='business' i], input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "navigationTimeout": 60000,
+    "selectorTimeout": 15000,
+    "actionTimeout": 40000,
+    "settleDelay": 5000,
+    "retries": 1,
+    "accessible": true, "notes": "React SPA — Puppeteer required; longer timeouts for SPA hydration"
   },
   {
     "state": "Colorado", "code": "CO",
@@ -72,8 +84,13 @@
     "state": "Georgia", "code": "GA",
     "url": "https://ecorp.sos.ga.gov/BusinessSearch",
     "method": "browser", "searchParam": "businessName",
-    "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
-    "accessible": true, "notes": "Angular SPA — Puppeteer required"
+    "searchInput": "input[name='businessName'], input#businessName, input[placeholder*='business' i], input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "navigationTimeout": 60000,
+    "selectorTimeout": 15000,
+    "actionTimeout": 40000,
+    "settleDelay": 5000,
+    "retries": 1,
+    "accessible": true, "notes": "Angular SPA — Puppeteer required; specific selectors added"
   },
   {
     "state": "Hawaii", "code": "HI",
@@ -237,8 +254,13 @@
     "state": "North Dakota", "code": "ND",
     "url": "https://firststop.sos.nd.gov/search/business",
     "method": "browser", "searchParam": "SearchValue",
-    "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
-    "accessible": true, "notes": "React SPA — Puppeteer required"
+    "searchInput": "input[name='SearchValue'], input[id*='SearchValue' i], input[placeholder*='Filing' i], input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "navigationTimeout": 60000,
+    "selectorTimeout": 15000,
+    "actionTimeout": 40000,
+    "settleDelay": 5000,
+    "retries": 1,
+    "accessible": true, "notes": "React SPA — added specific selectors and retry for reliability"
   },
   {
     "state": "Ohio", "code": "OH",
@@ -281,8 +303,13 @@
     "state": "South Carolina", "code": "SC",
     "url": "https://businessfilings.sc.gov/BusinessFiling/Entity/Search",
     "method": "browser", "searchParam": "entityName",
-    "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
-    "accessible": true, "notes": "Angular SPA — Puppeteer required"
+    "searchInput": "input[name='entityName'], input[formcontrolname='entityName'], input[formcontrolname*='entity' i], input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "navigationTimeout": 60000,
+    "selectorTimeout": 15000,
+    "actionTimeout": 40000,
+    "settleDelay": 5000,
+    "retries": 1,
+    "accessible": true, "notes": "Angular SPA — added formcontrolname selectors and retry"
   },
   {
     "state": "South Dakota", "code": "SD",
@@ -320,8 +347,13 @@
     "state": "Virginia", "code": "VA",
     "url": "https://cis.scc.virginia.gov/EntitySearch/Index",
     "method": "browser", "searchParam": "entityName",
-    "searchInput": "input[name='entityName'], input[placeholder*='name' i], input[type='text']",
-    "accessible": true, "notes": "Axios times out; Puppeteer waits correctly"
+    "searchInput": "input[name='entityName'], input#entityName, input[placeholder*='entity' i], input[placeholder*='name' i], input[type='text']",
+    "navigationTimeout": 60000,
+    "selectorTimeout": 15000,
+    "actionTimeout": 40000,
+    "settleDelay": 5000,
+    "retries": 1,
+    "accessible": true, "notes": "Axios times out; Puppeteer required — added retry and extended timeouts"
   },
   {
     "state": "Washington", "code": "WA",
@@ -341,12 +373,12 @@
     "searchInput": "input[name='SearchEntity'], input[id*='Search' i], input[type='text']",
     "searchSubmit": "input[name='btnSearch'], input[value*='Search' i], button[type='submit']",
     "waitUntil": "domcontentloaded",
-    "navigationTimeout": 70000,
-    "selectorTimeout": 12000,
-    "actionTimeout": 45000,
-    "settleDelay": 8000,
-    "retries": 1,
-    "accessible": true, "notes": "ASP.NET — axes times out; Puppeteer fills form correctly"
+    "navigationTimeout": 90000,
+    "selectorTimeout": 20000,
+    "actionTimeout": 60000,
+    "settleDelay": 10000,
+    "retries": 2,
+    "accessible": true, "notes": "ASP.NET — increased timeouts and retries; site is slow to respond"
   },
   {
     "state": "Wyoming", "code": "WY",

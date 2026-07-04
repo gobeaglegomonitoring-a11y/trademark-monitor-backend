@@ -75,7 +75,7 @@ app.get("/api/test-cipo", async (req, res) => {
   res.json({ message: `CIPO scan complete. ${total} new match(es) found.` });
 });
 
-const { runUSStateScraper } = require("./scrapers/usStateScraper");
+const { runUSStateScraper, getUnsupportedStates } = require("./scrapers/usStateScraper");
 app.get("/api/test-us-states", async (req, res) => {
   const total = await runUSStateScraper();
   res.json({ message: `US States scan complete. ${total} new match(es) found.` });
@@ -85,6 +85,20 @@ const { runUSStateScraper: runUSStatesScraperV1 } = require("./scrapers/usStateS
 app.get("/api/test-us-states-v1", async (req, res) => {
   const total = await runUSStatesScraperV1();
   res.json({ message: `US States (v1) scan complete. ${total} new match(es) found.` });
+});
+
+app.get("/api/test-us-states-v1/:code", async (req, res) => {
+  const code = String(req.params.code || "").toUpperCase();
+  try {
+    const total = await runUSStatesScraperV1(code);
+    res.json({ message: `US-${code} scan complete. ${total} new match(es) found.` });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get("/api/us-state-gaps", (req, res) => {
+  res.json(getUnsupportedStates());
 });
 
 const { runDomainScraper } = require("./scrapers/domainScraper");
