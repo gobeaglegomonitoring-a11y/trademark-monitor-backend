@@ -20,6 +20,26 @@ const BASE_HEADERS = {
 // Allow self-signed certs (OK, MO SSL issues)
 const HTTPS_AGENT = new https.Agent({ rejectUnauthorized: false });
 
+function isRetryableError(err) {
+  const msg = String(err?.message || '');
+  return /timeout|ECONNRESET|ERR_CONNECTION_TIMED_OUT|ERR_NAME_NOT_RESOLVED|503|403/i.test(msg);
+}
+
+async function withRetry(label, fn, retries = 0) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= retries || !isRetryableError(err)) break;
+      console.warn(`[US-STATES] ${label} retry ${attempt + 1}/${retries}: ${err.message}`);
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // ── STRICT MATCHING ───────────────────────────────────────────────────────────
 // Strip common legal entity suffixes so "GUCCI LLC" base becomes "GUCCI"
 const SUFFIX_RE = /[\s,.]*(LLC|L\.L\.C\.?|INC\.?|CORP\.?|LTD\.?|L\.P\.?|LLP|L\.L\.P\.?|P\.C\.?|CO\.?|COMPANY|COMPANIES|HOLDINGS?|GROUP|ENTERPRISES?|INDUSTRIES|INTERNATIONAL|WORLDWIDE|GLOBAL|FOUNDATION|TRUST|ASSOCIATES?|PARTNERS?|SERVICES?|SYSTEMS?|DISSOLVED[^,)]*|CANCELLED[^,)]*)/gi;
@@ -137,9 +157,16 @@ async function scrapeWithASPNET(state, keyword) {
 async function scrapeWithBrowser(state, keyword) {
   const { launchBrowser } = require('../lib/browser');
   const browser = await launchBrowser(['--ignore-certificate-errors', '--disable-blink-features=AutomationControlled', '--disable-web-security']);
+  const navigationTimeout = state.navigationTimeout || 35000;
+  const selectorTimeout   = state.selectorTimeout   || 5000;
+  const actionTimeout     = state.actionTimeout     || 25000;
+  const settleDelay       = state.settleDelay       || 2500;
+  const waitUntil         = state.waitUntil         || 'networkidle2';
 
   try {
     const page = await browser.newPage();
+    page.setDefaultTimeout(actionTimeout);
+    page.setDefaultNavigationTimeout(navigationTimeout);
     await page.setUserAgent(BASE_HEADERS['User-Agent']);
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
@@ -148,7 +175,7 @@ async function scrapeWithBrowser(state, keyword) {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     });
 
-    await page.goto(state.url, { waitUntil: 'networkidle2', timeout: 35000 });
+    await page.goto(state.url, { waitUntil, timeout: navigationTimeout });
 
     // Click any pre-search elements (e.g. radio buttons to select search type)
     if (Array.isArray(state.clickBefore)) {
@@ -172,7 +199,7 @@ async function scrapeWithBrowser(state, keyword) {
     let typed = false;
     for (const sel of inputCandidates) {
       try {
-        await page.waitForSelector(sel, { timeout: 5000 });
+        await page.waitForSelector(sel, { timeout: selectorTimeout });
         await page.$eval(sel, el => { el.value = ''; el.focus(); });
         await page.type(sel, keyword, { delay: 50 });
         typed = true;
@@ -189,8 +216,8 @@ async function scrapeWithBrowser(state, keyword) {
       await page.keyboard.press('Enter');
     }
 
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 2500));
+    await page.waitForNavigation({ waitUntil, timeout: actionTimeout }).catch(() => {});
+    await new Promise(r => setTimeout(r, settleDelay));
 
     // Extract names
     const resSel = state.resultsSelector || 'td';
@@ -261,16 +288,19 @@ async function runUSStateScraper() {
   const gaps = [];
   let totalFound = 0;
   let errorLog   = null;
+  const warningMessages = [];
   const report   = [];
 
   for (const state of active) {
     for (const kw of keywords) {
       try {
-        let names = [];
-        if (state.method === 'api')     names = await scrapeWithAPI(state, kw.term);
-        if (state.method === 'axios')   names = await scrapeWithAxios(state, kw.term);
-        if (state.method === 'aspnet')  names = await scrapeWithASPNET(state, kw.term);
-        if (state.method === 'browser') names = await scrapeWithBrowser(state, kw.term);
+        let names = await withRetry(`[${state.code}] "${kw.term}"`, async () => {
+          if (state.method === 'api')     return scrapeWithAPI(state, kw.term);
+          if (state.method === 'axios')   return scrapeWithAxios(state, kw.term);
+          if (state.method === 'aspnet')  return scrapeWithASPNET(state, kw.term);
+          if (state.method === 'browser') return scrapeWithBrowser(state, kw.term);
+          return [];
+        }, state.retries || 0);
 
         names = [...new Set(names)];
 
@@ -295,6 +325,7 @@ async function runUSStateScraper() {
         const msg = err.message;
         console.error(`[US-STATES] [${state.code}] Error (${state.method}): ${msg}`);
         errorLog = msg;
+        warningMessages.push(`${state.code}: ${msg}`);
         gaps.push(`${state.code.padEnd(3)} ${state.state.padEnd(20)} | ${state.method} error: ${msg}`);
         report.push({ code: state.code, keyword: kw.term, results: 0, matches: 0, status: 'error' });
       }
@@ -318,8 +349,12 @@ async function runUSStateScraper() {
     await supabase.from('scan_logs').update({
       completed_at: new Date().toISOString(),
       total_found: totalFound,
-      error_log: errorLog,
+      error_log: totalFound === 0 ? errorLog : null,
     }).eq('id', logId);
+  }
+
+  if (warningMessages.length) {
+    console.warn(`[US-STATES] Completed with non-fatal state warnings: ${warningMessages.join(' | ')}`);
   }
 
   return totalFound;

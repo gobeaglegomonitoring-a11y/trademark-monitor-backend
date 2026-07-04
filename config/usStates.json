@@ -340,6 +340,12 @@
     "method": "browser", "searchParam": "SearchEntity",
     "searchInput": "input[name='SearchEntity'], input[id*='Search' i], input[type='text']",
     "searchSubmit": "input[name='btnSearch'], input[value*='Search' i], button[type='submit']",
+    "waitUntil": "domcontentloaded",
+    "navigationTimeout": 70000,
+    "selectorTimeout": 12000,
+    "actionTimeout": 45000,
+    "settleDelay": 8000,
+    "retries": 1,
     "accessible": true, "notes": "ASP.NET — axes times out; Puppeteer fills form correctly"
   },
   {
