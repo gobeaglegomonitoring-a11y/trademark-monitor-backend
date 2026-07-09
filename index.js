@@ -11,6 +11,8 @@ app.use(cors({
     "http://localhost:3000",
     "https://trademark-monitor-frontend.vercel.app",
     "https://trade-mark-frontend.vercel.app",
+    "https://gobeaglego.com",
+    "https://www.gobeaglego.com",
     process.env.FRONTEND_URL,
   ].filter(Boolean),
 }));
