@@ -1,8 +1,8 @@
-name: Daily Trademark Scan
+name: Hourly Trademark Scan
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # midnight UTC every day
+    - cron: '0 * * * *'   # every hour
   workflow_dispatch:        # allow manual trigger from GitHub Actions tab
 
 jobs:
