@@ -26,7 +26,7 @@ jobs:
           echo "Response body:"
           cat /tmp/response.json
 
-          if [ "$response" != "200" ]; then
+          if [ "$response" != "200" ] && [ "$response" != "202" ]; then
             echo "Scan failed with HTTP $response"
             exit 1
           fi

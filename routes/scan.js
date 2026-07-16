@@ -14,6 +14,9 @@ router.post('/runall', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Respond immediately so GitHub Actions curl doesn't timeout
+  res.status(202).json({ status: 'started', timestamp: new Date().toISOString() });
+
   const scanStartTime = new Date();
   const results = {};
   const errors  = {};
@@ -96,12 +99,7 @@ router.post('/runall', async (req, res) => {
     console.error('[SCAN] Alert error:', alertErr.message);
   }
 
-  res.json({
-    status: 'complete',
-    timestamp: new Date().toISOString(),
-    results,
-    errors,
-  });
+  console.log('[SCAN] All scrapers finished. Results:', results, 'Errors:', errors);
 });
 
 module.exports = router;
