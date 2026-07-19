@@ -35,11 +35,14 @@ async function searchIPAustralia(browser, keyword) {
     await page.type(inputSel, keyword, { delay: 60 });
     console.log(`[IP-AU] Typed "${keyword}"`);
 
-    // Wait for navigation to results page after Enter
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }),
-      page.keyboard.press('Enter')
-    ]);
+    // The IP Australia search is an Angular SPA. Depending on the deployment,
+    // pressing Enter either performs a real navigation or updates the current
+    // page in place. A navigation timeout must therefore not fail the scan.
+    const navigation = page
+      .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 45000 })
+      .catch(() => null);
+    await page.keyboard.press('Enter');
+    await navigation;
 
     // Wait for Angular to render results before extracting
     const resultReady = await Promise.race([
@@ -136,7 +139,7 @@ async function runIPAustraliaScraper() {
 
   const { data: logEntry } = await supabase
     .from('scan_logs')
-    .insert([{ scan_type: 'trademark', started_at: new Date().toISOString() }])
+    .insert([{ scan_type: 'trademark_ipau', started_at: new Date().toISOString() }])
     .select()
     .single();
 
