@@ -9,7 +9,7 @@ const path = require('path');
 const states = require('../config/usStates.json');
 
 const STATE_CONCURRENCY = Math.max(1, Math.min(4, Number(process.env.US_STATE_CONCURRENCY) || 3));
-const STATE_KEYWORD_TIMEOUT_MS = Math.max(30000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 90000);
+const STATE_KEYWORD_TIMEOUT_MS = Math.max(30000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 180000);
 const STATE_RUN_TIMEOUT_MS = Math.max(60000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 28 * 60 * 1000);
 
 function withTimeout(promise, ms, label) {
