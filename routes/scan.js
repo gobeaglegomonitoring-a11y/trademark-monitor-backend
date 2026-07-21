@@ -5,6 +5,16 @@ const { sendScheduledScanReport } = require('../lib/mailer');
 const { generatePDF } = require('../services/pdfGenerator');
 
 const SETTINGS_ID = '00000000-0000-0000-0000-000000000001';
+const DEFAULT_SCRAPER_TIMEOUT_MS = 25 * 60 * 1000;
+
+function runWithTimeout(scraper) {
+  const timeoutMs = scraper.timeoutMs || DEFAULT_SCRAPER_TIMEOUT_MS;
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${scraper.name} exceeded ${Math.round(timeoutMs / 60000)} minute limit`)), timeoutMs);
+  });
+  return Promise.race([scraper.fn(), timeout]).finally(() => clearTimeout(timer));
+}
 
 // POST /api/scan/runall
 // Called by the scheduled GitHub Actions workflow three times per day.
@@ -28,7 +38,7 @@ router.post('/runall', async (req, res) => {
     { name: 'iponz', fn: () => require('../scrapers/iponzScraper').runIPONZScraper() },
     { name: 'ukipo', fn: () => require('../scrapers/ukipoScraper').runUKIPOScraper() },
     { name: 'cipo', fn: () => require('../scrapers/cipoScraper').runCIPOScraper() },
-    { name: 'us_states', fn: () => require('../scrapers/usStateScraper').runUSStateScraper() },
+    { name: 'us_states', timeoutMs: 30 * 60 * 1000, fn: () => require('../scrapers/usStateScraper').runUSStateScraper() },
     { name: 'domains', fn: () => require('../scrapers/domainScraper').runDomainScraper() },
     { name: 'marketplace', fn: () => require('../scrapers/marketplaceScraper').runMarketplaceScraper() },
     { name: 'social', fn: () => require('../scrapers/socialScraper').runSocialScraper() },
@@ -37,7 +47,7 @@ router.post('/runall', async (req, res) => {
   console.log(`[SCAN] Scheduled scan started at ${scanStartTime.toISOString()}`);
   for (const scraper of scrapers) {
     try {
-      const count = await scraper.fn();
+      const count = await runWithTimeout(scraper);
       results[scraper.name] = count ?? 'done';
       console.log(`[SCAN] ${scraper.name}: ${count ?? 'done'}`);
     } catch (err) {

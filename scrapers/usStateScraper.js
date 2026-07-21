@@ -8,6 +8,29 @@ const path = require('path');
 
 const states = require('../config/usStates.json');
 
+const STATE_CONCURRENCY = Math.max(1, Math.min(4, Number(process.env.US_STATE_CONCURRENCY) || 3));
+const STATE_KEYWORD_TIMEOUT_MS = Math.max(30000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 90000);
+const STATE_RUN_TIMEOUT_MS = Math.max(60000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 28 * 60 * 1000);
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function mapWithConcurrency(items, concurrency, worker) {
+  let nextIndex = 0;
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runWorker));
+}
+
 function getSupportedStates(code) {
   const active = states.filter(s => s.accessible);
   if (!code) return active;
@@ -386,4 +409,109 @@ async function runUSStateScraper(code = null) {
   return totalFound;
 }
 
-module.exports = { runUSStateScraper, getUnsupportedStates };
+async function runUSStateScraperReliable(code = null) {
+  const selectedCode = code ? String(code).trim().toUpperCase() : null;
+  const active = getSupportedStates(selectedCode);
+  if (selectedCode && active.length === 0) {
+    const knownState = states.find(s => s.code === selectedCode);
+    throw new Error(`US-${selectedCode} is not enabled for scraping: ${knownState?.notes || 'Unknown state code'}`);
+  }
+
+  const scanType = selectedCode ? `trademark_us_${selectedCode.toLowerCase()}` : 'trademark_us_states';
+  if (!selectedCode) {
+    const staleBefore = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    await supabase.from('scan_logs').update({
+      completed_at: new Date().toISOString(),
+      error_log: 'Abandoned: backend stopped before scan completion',
+    }).eq('scan_type', scanType).is('completed_at', null).lt('started_at', staleBefore);
+  }
+
+  const { data: logEntry, error: logInsertError } = await supabase
+    .from('scan_logs')
+    .insert([{ scan_type: scanType, started_at: new Date().toISOString() }])
+    .select().single();
+  if (logInsertError) throw logInsertError;
+
+  const logId = logEntry?.id;
+  const gaps = [];
+  const warnings = [];
+  let totalFound = 0;
+  let fatalError = null;
+  let cancelRequested = false;
+
+  try {
+    const { data: keywords, error: keywordError } = await supabase
+      .from('keywords').select('term').eq('active', true);
+    if (keywordError) throw keywordError;
+    if (!keywords?.length) {
+      console.log('[US-STATES] No active keywords.');
+      return 0;
+    }
+
+    console.log(`[US-STATES] Scanning ${active.length} states for ${keywords.length} keyword(s), concurrency=${STATE_CONCURRENCY}, taskTimeout=${STATE_KEYWORD_TIMEOUT_MS}ms`);
+    const scanAllStates = mapWithConcurrency(active, STATE_CONCURRENCY, async (state) => {
+      for (const kw of keywords) {
+        if (cancelRequested) return;
+        try {
+          const search = withRetry(`[${state.code}] "${kw.term}"`, async () => {
+            if (state.method === 'api') return scrapeWithAPI(state, kw.term);
+            if (state.method === 'axios') return scrapeWithAxios(state, kw.term);
+            if (state.method === 'aspnet') return scrapeWithASPNET(state, kw.term);
+            if (state.method === 'browser') return scrapeWithBrowser(state, kw.term);
+            return [];
+          }, state.retries || 0);
+          const names = [...new Set(await withTimeout(
+            search,
+            STATE_KEYWORD_TIMEOUT_MS,
+            `[US-STATES] ${state.code} "${kw.term}"`,
+          ))];
+
+          let matches = 0;
+          for (const name of names) {
+            if (!isValidMatch(name, kw.term)) continue;
+            const score = similarity(stripSuffixes(name).toLowerCase(), kw.term.toLowerCase());
+            if (await insertIfNew(`US-${state.code}`, name, kw.term, score)) {
+              totalFound++;
+              matches++;
+            }
+          }
+          console.log(`[US-STATES] [${state.code}] "${kw.term}" -> ${names.length} results, ${matches} match(es)`);
+        } catch (err) {
+          const message = `${state.code}/${kw.term}: ${err.message}`;
+          warnings.push(message);
+          gaps.push(`${state.code.padEnd(3)} ${state.state.padEnd(20)} | ${state.method} error: ${err.message}`);
+          console.error(`[US-STATES] ${message}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+    });
+    await withTimeout(scanAllStates, STATE_RUN_TIMEOUT_MS, '[US-STATES] complete scan');
+
+    if (!selectedCode) {
+      getUnsupportedStates().forEach(s => gaps.push(`${s.code.padEnd(3)} ${s.state.padEnd(20)} | NOT ENABLED: ${s.reason}`));
+    }
+    try {
+      fs.writeFileSync(path.join(__dirname, '../data/state-gaps.txt'), gaps.join('\n'), 'utf8');
+    } catch (err) {
+      warnings.push(`Gap report write failed: ${err.message}`);
+    }
+    return totalFound;
+  } catch (err) {
+    cancelRequested = true;
+    fatalError = err;
+    throw err;
+  } finally {
+    if (logId) {
+      const errorSummary = fatalError?.message || (warnings.length ? warnings.slice(0, 10).join(' | ') : null);
+      const { error: updateError } = await supabase.from('scan_logs').update({
+        completed_at: new Date().toISOString(),
+        total_found: totalFound,
+        error_log: errorSummary,
+      }).eq('id', logId);
+      if (updateError) console.error('[US-STATES] Scan-log finalization failed:', updateError.message);
+    }
+    console.log(`[US-STATES] Finished with ${totalFound} new match(es) and ${warnings.length} warning(s).`);
+  }
+}
+
+module.exports = { runUSStateScraper: runUSStateScraperReliable, getUnsupportedStates };
