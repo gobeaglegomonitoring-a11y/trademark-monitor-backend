@@ -8,9 +8,11 @@ const path = require('path');
 
 const states = require('../config/usStates.json');
 
-const STATE_CONCURRENCY = Math.max(1, Math.min(4, Number(process.env.US_STATE_CONCURRENCY) || 3));
-const STATE_KEYWORD_TIMEOUT_MS = Math.max(30000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 10 * 60 * 1000);
-const STATE_RUN_TIMEOUT_MS = Math.max(60000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 90 * 60 * 1000);
+// Render cannot reliably launch several Chromium processes at once. Sequential
+// browser work avoids ETXTBSY and WebSocket-endpoint startup failures.
+const STATE_CONCURRENCY = 1;
+const STATE_KEYWORD_TIMEOUT_MS = Math.max(10 * 60 * 1000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 0);
+const STATE_RUN_TIMEOUT_MS = Math.max(90 * 60 * 1000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 0);
 
 function withTimeout(promise, ms, label) {
   let timer;
@@ -194,11 +196,13 @@ async function scrapeWithASPNET(state, keyword) {
 async function scrapeWithBrowser(state, keyword) {
   const { launchBrowser } = require('../lib/browser');
   const browser = await launchBrowser(['--ignore-certificate-errors', '--disable-blink-features=AutomationControlled', '--disable-web-security']);
-  const navigationTimeout = state.navigationTimeout || 35000;
-  const selectorTimeout   = state.selectorTimeout   || 5000;
-  const actionTimeout     = state.actionTimeout     || 25000;
+  const navigationTimeout = state.navigationTimeout || 120000;
+  const selectorTimeout   = state.selectorTimeout   || 30000;
+  const actionTimeout     = state.actionTimeout     || 90000;
   const settleDelay       = state.settleDelay       || 2500;
-  const waitUntil         = state.waitUntil         || 'networkidle2';
+  // SPAs commonly keep analytics/API connections open, so networkidle2 can
+  // time out even after the usable page has loaded.
+  const waitUntil         = state.waitUntil         || 'domcontentloaded';
 
   try {
     const page = await browser.newPage();
