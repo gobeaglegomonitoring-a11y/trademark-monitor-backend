@@ -1,34 +1,66 @@
 const supabase = require('../lib/supabase');
 
 async function fetchMatches({ keywords, dateFrom, dateTo, status }) {
-  const applyFilters = (query, kwCol) => {
+  const fetchAll = async (table, columns, kwCol) => {
+    const pageSize = 1000;
+    const rows = [];
+    let offset = 0;
+
+    while (true) {
+      let query = supabase.from(table).select(columns);
     if (keywords && keywords.length > 0) {
       query = query.in(kwCol, keywords);
     }
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
     if (status)   query = query.eq('status', status);
-    return query.order('created_at', { ascending: false }).limit(500);
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+      offset += pageSize;
+    }
+    return rows;
   };
 
   const [tm, dm, mm, sm] = await Promise.all([
-    applyFilters(supabase.from('trademark_matches').select('matched_keyword, filing_name, registry, status, created_at'), 'matched_keyword'),
-    applyFilters(supabase.from('domain_matches').select('keyword_matched, domain, status, created_at'), 'keyword_matched'),
-    applyFilters(supabase.from('marketplace_matches').select('keyword_matched, platform, listing_title, listing_url, seller_name, status, created_at'), 'keyword_matched'),
-    applyFilters(supabase.from('social_matches').select('keyword_matched, platform, handle_or_url, status, created_at'), 'keyword_matched'),
+    fetchAll('trademark_matches', 'matched_keyword, filing_name, registry, similarity_score, status, created_at', 'matched_keyword'),
+    fetchAll('domain_matches', 'keyword_matched, domain, status, created_at', 'keyword_matched'),
+    fetchAll('marketplace_matches', 'keyword_matched, platform, listing_title, listing_url, seller_name, status, created_at', 'keyword_matched'),
+    fetchAll('social_matches', 'keyword_matched, platform, handle_or_url, status, created_at', 'keyword_matched'),
   ]);
 
   return {
-    trademark:   tm.data   || [],
-    domain:      dm.data   || [],
-    marketplace: mm.data   || [],
-    social:      sm.data   || [],
+    trademark: tm,
+    domain: dm,
+    marketplace: mm,
+    social: sm,
   };
+}
+
+async function fetchMonitoredKeywords() {
+  const { data, error } = await supabase
+    .from('keywords')
+    .select('term, active, created_at')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
 function fmt(dateStr) {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function h(value) {
+  return String(value ?? '—')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function badge(status) {
@@ -52,13 +84,68 @@ function section(title, color, count, html) {
     </div>`;
 }
 
+function attentionTable(matches, scanStartedAt) {
+  const rows = [
+    ...matches.trademark.map(r => ({
+      keyword: r.matched_keyword, source: r.registry || 'Trademark', item: r.filing_name,
+      status: r.status, date: r.created_at, score: r.similarity_score,
+    })),
+    ...matches.domain.map(r => ({
+      keyword: r.keyword_matched, source: 'Domain', item: r.domain,
+      status: r.status, date: r.created_at,
+    })),
+    ...matches.marketplace.map(r => ({
+      keyword: r.keyword_matched, source: r.platform || 'Marketplace', item: r.listing_title,
+      status: r.status, date: r.created_at,
+    })),
+    ...matches.social.map(r => ({
+      keyword: r.keyword_matched, source: r.platform || 'Social', item: r.handle_or_url,
+      status: r.status, date: r.created_at,
+    })),
+  ]
+    .filter(r => (r.status || 'new') === 'new')
+    .sort((a, b) => {
+      const aLatest = scanStartedAt && new Date(a.date) >= new Date(scanStartedAt) ? 1 : 0;
+      const bLatest = scanStartedAt && new Date(b.date) >= new Date(scanStartedAt) ? 1 : 0;
+      return bLatest - aLatest || (Number(b.score) || 0) - (Number(a.score) || 0) || new Date(b.date) - new Date(a.date);
+    });
+
+  if (!rows.length) {
+    return '<div class="clear-message">No unresolved new matches currently require attention.</div>';
+  }
+
+  const trs = rows.map(r => {
+    const isLatest = scanStartedAt && new Date(r.date) >= new Date(scanStartedAt);
+    const priority = isLatest ? 'New this scan' : Number(r.score) >= 0.9 ? 'Strong match' : 'Pending review';
+    return `<tr>
+      <td><span class="priority">${priority}</span></td>
+      <td>${h(r.keyword)}</td><td>${h(r.source)}</td>
+      <td class="long">${h(r.item)}</td><td>${fmt(r.date)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table><thead><tr>
+    <th>Priority</th><th>Keyword</th><th>Source</th><th>Potential Match</th><th>Found</th>
+  </tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function keywordTable(monitoredKeywords) {
+  if (!monitoredKeywords.length) return '<div class="clear-message">No monitored keywords configured.</div>';
+  const trs = monitoredKeywords.map(k => `<tr>
+    <td>${h(k.term)}</td>
+    <td>${k.active ? '<span class="active">Active</span>' : '<span class="inactive">Inactive</span>'}</td>
+    <td>${fmt(k.created_at)}</td>
+  </tr>`).join('');
+  return `<table><thead><tr><th>Monitored Keyword</th><th>Monitoring Status</th><th>Added</th></tr></thead><tbody>${trs}</tbody></table>`;
+}
+
 function trademarkTable(rows) {
   if (!rows.length) return '';
   const trs = rows.map(r => `
     <tr>
-      <td>${r.matched_keyword || '—'}</td>
-      <td>${r.filing_name     || '—'}</td>
-      <td>${r.registry        || '—'}</td>
+      <td>${h(r.matched_keyword)}</td>
+      <td>${h(r.filing_name)}</td>
+      <td>${h(r.registry)}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
@@ -71,8 +158,8 @@ function domainTable(rows) {
   if (!rows.length) return '';
   const trs = rows.map(r => `
     <tr>
-      <td>${r.keyword_matched || '—'}</td>
-      <td>${r.domain          || '—'}</td>
+      <td>${h(r.keyword_matched)}</td>
+      <td>${h(r.domain)}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
@@ -85,10 +172,10 @@ function marketplaceTable(rows) {
   if (!rows.length) return '';
   const trs = rows.map(r => `
     <tr>
-      <td>${r.keyword_matched || '—'}</td>
-      <td>${r.platform        || '—'}</td>
-      <td class="long">${r.listing_title || '—'}</td>
-      <td>${r.seller_name     || '—'}</td>
+      <td>${h(r.keyword_matched)}</td>
+      <td>${h(r.platform)}</td>
+      <td class="long">${h(r.listing_title)}</td>
+      <td>${h(r.seller_name)}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
@@ -101,9 +188,9 @@ function socialTable(rows) {
   if (!rows.length) return '';
   const trs = rows.map(r => `
     <tr>
-      <td>${r.keyword_matched || '—'}</td>
-      <td>${r.platform        || '—'}</td>
-      <td>${r.handle_or_url   || '—'}</td>
+      <td>${h(r.keyword_matched)}</td>
+      <td>${h(r.platform)}</td>
+      <td>${h(r.handle_or_url)}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
@@ -112,9 +199,13 @@ function socialTable(rows) {
   </tr></thead><tbody>${trs}</tbody></table>`;
 }
 
-function buildHtml({ matches, keywords, dateFrom, dateTo }) {
+function buildHtml({ matches, keywords, dateFrom, dateTo, monitoredKeywords, scanStartedAt }) {
   const total = matches.trademark.length + matches.domain.length + matches.marketplace.length + matches.social.length;
-  const kwList = keywords && keywords.length ? keywords.join(', ') : 'All active keywords';
+  const allRows = [...matches.trademark, ...matches.domain, ...matches.marketplace, ...matches.social];
+  const attentionCount = allRows.filter(r => (r.status || 'new') === 'new').length;
+  const reviewedCount = allRows.filter(r => r.status === 'reviewed').length;
+  const dismissedCount = allRows.filter(r => r.status === 'dismissed').length;
+  const kwList = keywords && keywords.length ? h(keywords.join(', ')) : 'All active keywords';
   const dateRange = (dateFrom || dateTo)
     ? `${dateFrom || '—'} to ${dateTo || '—'}`
     : 'All time';
@@ -143,6 +234,13 @@ function buildHtml({ matches, keywords, dateFrom, dateTo }) {
     color: #1B2A4A; padding: 8px 12px; background: #F4F6F9; margin-bottom: 12px;
     display: flex; align-items: center; gap: 10px; }
   .count { background: #1B2A4A; color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+  .attention { border: 2px solid #E3000F; border-radius: 8px; padding: 16px; margin-bottom: 30px; background: #FFF8F8; }
+  .attention h2 { color: #B22222; font-size: 17px; margin-bottom: 5px; }
+  .attention p { color: #666; font-size: 11px; margin-bottom: 12px; }
+  .priority { background:#FDECEA; color:#B22222; padding:2px 7px; border-radius:9px; font-weight:bold; font-size:10px; white-space:nowrap; }
+  .active { color:#1E7A4A; font-weight:bold; }
+  .inactive { color:#888; font-weight:bold; }
+  .clear-message { padding:14px; background:#F4F6F9; color:#555; border-radius:6px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 8px; }
   th { background: #1B2A4A; color: #fff; padding: 8px 10px; text-align: left; font-size: 11px;
@@ -186,6 +284,21 @@ function buildHtml({ matches, keywords, dateFrom, dateTo }) {
   </div>
 </div>
 
+<div class="summary">
+  <div class="summary-card" style="background:#FDECEA"><div class="num" style="color:#B22222">${attentionCount}</div><div class="lbl" style="color:#B22222">Attention Required</div></div>
+  <div class="summary-card" style="background:#D4EDDA"><div class="num" style="color:#1E7A4A">${reviewedCount}</div><div class="lbl" style="color:#1E7A4A">Reviewed</div></div>
+  <div class="summary-card" style="background:#F4F6F9"><div class="num" style="color:#666">${dismissedCount}</div><div class="lbl" style="color:#666">Dismissed</div></div>
+  <div class="summary-card" style="background:#E8EEF7"><div class="num" style="color:#1B2A4A">${monitoredKeywords.length}</div><div class="lbl" style="color:#1B2A4A">Monitored Keywords</div></div>
+</div>
+
+<div class="attention">
+  <h2>Attention Required — Potential Matches</h2>
+  <p>Unresolved monitoring alerts are prioritized below. They are potential matches requiring review, not confirmed legal threats.</p>
+  ${attentionTable(matches, scanStartedAt)}
+</div>
+
+${section('Monitored Keywords', '#1B2A4A', monitoredKeywords.length, keywordTable(monitoredKeywords))}
+
 ${section('Trademark Registry Matches', '#2E5FA3', matches.trademark.length,   trademarkTable(matches.trademark))}
 ${section('Domain Typo Matches',         '#D4A017', matches.domain.length,      domainTable(matches.domain))}
 ${section('Marketplace Matches',          '#1E7A4A', matches.marketplace.length, marketplaceTable(matches.marketplace))}
@@ -200,9 +313,12 @@ ${section('Social Media Matches',         '#5B2D8E', matches.social.length,     
 </html>`;
 }
 
-async function generatePDF({ keywords, dateFrom, dateTo, status }) {
-  const matches = await fetchMatches({ keywords, dateFrom, dateTo, status });
-  const html = buildHtml({ matches, keywords, dateFrom, dateTo });
+async function generatePDF({ keywords, dateFrom, dateTo, status, scanStartedAt } = {}) {
+  const [matches, monitoredKeywords] = await Promise.all([
+    fetchMatches({ keywords, dateFrom, dateTo, status }),
+    fetchMonitoredKeywords(),
+  ]);
+  const html = buildHtml({ matches, keywords, dateFrom, dateTo, monitoredKeywords, scanStartedAt });
 
   let browser;
   const isProduction = !!process.env.RENDER;
@@ -213,7 +329,7 @@ async function generatePDF({ keywords, dateFrom, dateTo, status }) {
     browser = await puppeteerCore.launch({
       args:            chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath:  chromium.executablePath,
+      executablePath:  await chromium.executablePath(),
       headless:        chromium.headless,
     });
   } else {
