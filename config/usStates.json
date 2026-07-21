@@ -25,6 +25,8 @@
     "url": "https://ecorp.azcc.gov/BusinessSearch/Business",
     "method": "browser", "searchParam": "searchkeyword",
     "searchInput": "input[name='searchkeyword'], input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "waitUntil": "domcontentloaded", "navigationTimeout": 120000, "selectorTimeout": 30000,
+    "actionTimeout": 90000, "settleDelay": 10000, "retries": 2,
     "accessible": true, "notes": "Angular SPA — Puppeteer required"
   },
   {
@@ -39,11 +41,12 @@
     "url": "https://businesssearch.sos.ca.gov/",
     "method": "browser", "searchParam": "businessName",
     "searchInput": "input[name='businessName'], input#businessName, input[placeholder*='business' i], input[placeholder*='name' i], input[type='search'], input[type='text']",
-    "navigationTimeout": 60000,
-    "selectorTimeout": 15000,
-    "actionTimeout": 40000,
-    "settleDelay": 5000,
-    "retries": 1,
+    "navigationTimeout": 120000,
+    "selectorTimeout": 30000,
+    "actionTimeout": 90000,
+    "settleDelay": 10000,
+    "waitUntil": "domcontentloaded",
+    "retries": 2,
     "accessible": true, "notes": "React SPA — Puppeteer required; longer timeouts for SPA hydration"
   },
   {
@@ -156,6 +159,8 @@
     "url": "https://egov.maryland.gov/BusinessExpress/EntitySearch",
     "method": "browser", "searchParam": "businessName",
     "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "waitUntil": "domcontentloaded", "navigationTimeout": 120000, "selectorTimeout": 30000,
+    "actionTimeout": 90000, "settleDelay": 10000, "retries": 2,
     "accessible": true, "notes": "React SPA — Puppeteer required"
   },
   {
@@ -267,6 +272,8 @@
     "url": "https://businesssearch.ohiosos.gov/",
     "method": "browser", "searchParam": "searchValue",
     "searchInput": "input[name='searchValue'], input[placeholder*='name' i], input[type='text'], input[type='search']",
+    "waitUntil": "domcontentloaded", "navigationTimeout": 120000, "selectorTimeout": 30000,
+    "actionTimeout": 90000, "settleDelay": 10000, "retries": 2,
     "accessible": true, "notes": "403 on axios; Puppeteer bypasses"
   },
   {
@@ -281,6 +288,8 @@
     "url": "https://sos.oregon.gov/business/Pages/find.aspx",
     "method": "browser", "searchParam": "q",
     "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "waitUntil": "domcontentloaded", "navigationTimeout": 120000, "selectorTimeout": 30000,
+    "actionTimeout": 90000, "settleDelay": 10000, "retries": 2,
     "accessible": true, "notes": "Both known Socrata IDs return 404; using browser on SOS search page"
   },
   {
@@ -288,6 +297,8 @@
     "url": "https://file.dos.pa.gov/search/business",
     "method": "browser", "searchParam": "businessName",
     "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "waitUntil": "domcontentloaded", "navigationTimeout": 120000, "selectorTimeout": 30000,
+    "actionTimeout": 90000, "settleDelay": 10000, "retries": 2,
     "accessible": true, "notes": "React SPA — Puppeteer required"
   },
   {
@@ -322,6 +333,8 @@
     "url": "https://tncab.tnsos.gov/business-entity-search",
     "method": "browser", "searchParam": "name",
     "searchInput": "input[placeholder*='name' i], input[type='search'], input[type='text']",
+    "waitUntil": "domcontentloaded", "navigationTimeout": 120000, "selectorTimeout": 30000,
+    "actionTimeout": 90000, "settleDelay": 10000, "retries": 2,
     "accessible": true, "notes": "React SPA — Puppeteer required"
   },
   {
