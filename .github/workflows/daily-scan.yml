@@ -2,7 +2,7 @@ name: Trademark Scan
 
 on:
   schedule:
-    - cron: '0 4,10,16 * * *'  # three times daily: 12 AM, 6 AM, and 12 PM EDT (UTC-4)
+    - cron: '0 3,9,15 * * *'  # three times daily: 11 PM, 5 AM, and 11 AM EDT (UTC-4)
   workflow_dispatch:        # allow manual trigger from GitHub Actions tab
 
 jobs:
