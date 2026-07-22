@@ -499,6 +499,17 @@ async function insertListing(platform, keyword, listing) {
 
 let marketplaceScanRunning = false;
 
+function withPlatformTimeout(promise, platform, keyword) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${platform} scan for "${keyword}" timed out after 8 minutes`)),
+      8 * 60 * 1000,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function runMarketplaceScraper() {
   if (marketplaceScanRunning) {
     console.log('[MARKETPLACE] Scan already running - skipping duplicate request.');
@@ -507,6 +518,9 @@ async function runMarketplaceScraper() {
 
   marketplaceScanRunning = true;
   console.log('[MARKETPLACE] Starting marketplace scan...');
+  let logId = null;
+  let totalInserted = 0;
+  let errorLog = null;
 
   try {
     const { data: keywords } = await supabase
@@ -524,7 +538,7 @@ async function runMarketplaceScraper() {
       .insert([{ scan_type: 'marketplace', started_at: new Date().toISOString() }])
       .select()
       .single();
-    const logId = logEntry?.id;
+    logId = logEntry?.id;
 
     const platformFns = [
       { name: 'Amazon', fn: scrapeAmazon },
@@ -532,8 +546,6 @@ async function runMarketplaceScraper() {
       { name: 'Etsy', fn: scrapeEtsy },
     ];
 
-    let totalInserted = 0;
-    let errorLog = null;
     const summary = {};
 
     for (const { name } of platformFns) {
@@ -543,7 +555,7 @@ async function runMarketplaceScraper() {
     for (const kw of keywords) {
       for (const { name, fn } of platformFns) {
         try {
-          const { listings, skipped } = await fn(kw.term);
+          const { listings, skipped } = await withPlatformTimeout(fn(kw.term), name, kw.term);
           if (skipped) continue;
 
           summary[name].found += listings.length;
@@ -574,16 +586,19 @@ async function runMarketplaceScraper() {
     }
     console.log(`[MARKETPLACE] Total new listings inserted: ${totalInserted}`);
 
+    return totalInserted;
+  } catch (err) {
+    errorLog = err.message;
+    throw err;
+  } finally {
     if (logId) {
-      await supabase.from('scan_logs').update({
+      const { error: finalizeError } = await supabase.from('scan_logs').update({
         completed_at: new Date().toISOString(),
         total_found: totalInserted,
-        error_log: totalInserted > 0 ? null : errorLog,
+        error_log: errorLog,
       }).eq('id', logId);
+      if (finalizeError) console.error('[MARKETPLACE] Scan-log finalization failed:', finalizeError.message);
     }
-
-    return totalInserted;
-  } finally {
     marketplaceScanRunning = false;
   }
 }

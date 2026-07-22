@@ -6,14 +6,42 @@ const { generatePDF } = require('../services/pdfGenerator');
 
 const SETTINGS_ID = '00000000-0000-0000-0000-000000000001';
 const DEFAULT_SCRAPER_TIMEOUT_MS = 25 * 60 * 1000;
+let scanState = { running: false, startedAt: null, finishedAt: null };
 
-function runWithTimeout(scraper) {
+async function runWithTimeout(scraper) {
   const timeoutMs = scraper.timeoutMs || DEFAULT_SCRAPER_TIMEOUT_MS;
+  const startedAt = new Date().toISOString();
   let timer;
+  let failure = null;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(`${scraper.name} exceeded ${Math.round(timeoutMs / 60000)} minute limit`)), timeoutMs);
   });
-  return Promise.race([scraper.fn(), timeout]).finally(() => clearTimeout(timer));
+  try {
+    return await Promise.race([scraper.fn(), timeout]);
+  } catch (err) {
+    failure = err;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    // Scheduler-level safety net: regardless of scraper implementation, every
+    // log created by this scanner reaches a terminal state before moving on.
+    const { data: unfinished, error: selectError } = await supabase
+      .from('scan_logs')
+      .select('id, error_log')
+      .gte('started_at', startedAt)
+      .is('completed_at', null);
+    if (selectError) {
+      console.error(`[SCAN] ${scraper.name} log-finalizer query failed:`, selectError.message);
+    } else {
+      for (const log of unfinished || []) {
+        const { error: updateError } = await supabase.from('scan_logs').update({
+          completed_at: new Date().toISOString(),
+          error_log: log.error_log || failure?.message || 'Scanner returned without finalizing its log',
+        }).eq('id', log.id);
+        if (updateError) console.error(`[SCAN] ${scraper.name} log-finalizer update failed:`, updateError.message);
+      }
+    }
+  }
 }
 
 // POST /api/scan/runall
@@ -24,11 +52,15 @@ router.post('/runall', async (req, res) => {
   if (!apiKey || apiKey !== process.env.SCAN_API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  // Respond immediately so the workflow does not time out while scans run.
-  res.status(202).json({ status: 'started', timestamp: new Date().toISOString() });
+  if (scanState.running) {
+    return res.status(409).json({ error: 'A scheduled scan is already running', ...scanState });
+  }
 
   const scanStartTime = new Date();
+  scanState = { running: true, startedAt: scanStartTime.toISOString(), finishedAt: null };
+  // Respond immediately so the workflow does not time out while scans run.
+  res.status(202).json({ status: 'started', timestamp: scanState.startedAt });
+
   const results = {};
   const errors = {};
   const scrapers = [
@@ -38,10 +70,10 @@ router.post('/runall', async (req, res) => {
     { name: 'iponz', fn: () => require('../scrapers/iponzScraper').runIPONZScraper() },
     { name: 'ukipo', fn: () => require('../scrapers/ukipoScraper').runUKIPOScraper() },
     { name: 'cipo', fn: () => require('../scrapers/cipoScraper').runCIPOScraper() },
-    { name: 'us_states', timeoutMs: 95 * 60 * 1000, fn: () => require('../scrapers/usStateScraper').runUSStateScraper() },
     { name: 'domains', fn: () => require('../scrapers/domainScraper').runDomainScraper() },
     { name: 'marketplace', fn: () => require('../scrapers/marketplaceScraper').runMarketplaceScraper() },
     { name: 'social', fn: () => require('../scrapers/socialScraper').runSocialScraper() },
+    { name: 'us_states', timeoutMs: 95 * 60 * 1000, fn: () => require('../scrapers/usStateScraper').runUSStateScraper() },
   ];
 
   console.log(`[SCAN] Scheduled scan started at ${scanStartTime.toISOString()}`);
@@ -109,6 +141,17 @@ router.post('/runall', async (req, res) => {
   }
 
   console.log('[SCAN] All scrapers finished. Results:', results, 'Errors:', errors);
+  scanState = { ...scanState, running: false, finishedAt: new Date().toISOString() };
+});
+
+// GitHub Actions polls this endpoint to keep free Render services awake until
+// scanning and PDF/email reporting have both completed.
+router.get('/status', (req, res) => {
+  const apiKey = req.headers['x-scan-api-key'];
+  if (!apiKey || apiKey !== process.env.SCAN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.json(scanState);
 });
 
 module.exports = router;

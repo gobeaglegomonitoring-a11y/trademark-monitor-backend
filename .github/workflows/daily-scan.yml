@@ -9,7 +9,7 @@ jobs:
   run-scan:
     name: Run All Scrapers
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 150
 
     steps:
       - name: Trigger scan on Render backend
@@ -32,3 +32,22 @@ jobs:
           fi
 
           echo "Daily scan completed successfully"
+
+      - name: Keep Render awake and wait for report completion
+        env:
+          SCAN_API_KEY: ${{ secrets.SCAN_API_KEY }}
+        run: |
+          for attempt in $(seq 1 30); do
+            sleep 240
+            body=$(curl -fsS \
+              -H "x-scan-api-key: $SCAN_API_KEY" \
+              https://trade-mark-sys.onrender.com/api/scan/status)
+            echo "Scan status: $body"
+            running=$(echo "$body" | jq -r '.running')
+            if [ "$running" = "false" ]; then
+              echo "All scanners and PDF/email reporting completed"
+              exit 0
+            fi
+          done
+          echo "Scan did not complete within the 120-minute monitoring window"
+          exit 1

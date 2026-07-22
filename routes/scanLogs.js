@@ -10,6 +10,19 @@ router.get('/', async (req, res) => {
     : 50;
 
   try {
+    // Any process restart can strand an unfinished row. Finalize all stale
+    // scraper logs so the UI never presents abandoned work as still running.
+    const staleBefore = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { error: staleError } = await supabase
+      .from('scan_logs')
+      .update({
+        completed_at: new Date().toISOString(),
+        error_log: 'Abandoned: backend stopped before scan completion',
+      })
+      .is('completed_at', null)
+      .lt('started_at', staleBefore);
+    if (staleError) throw staleError;
+
     const { data, error } = await supabase
       .from('scan_logs')
       .select('id, scan_type, started_at, completed_at, total_found, error_log')
