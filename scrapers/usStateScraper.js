@@ -47,6 +47,21 @@ function getUnsupportedStates() {
     .map(s => ({ code: s.code, state: s.state, reason: s.notes }));
 }
 
+function formatStateSummary(totalStates, workingStates, partialStates, failedStates, warnings = []) {
+  const working = [...workingStates].sort();
+  const partial = [...partialStates].sort();
+  const failed = [...failedStates].sort();
+  const checked = new Set([...working, ...failed]).size;
+  const parts = [
+    `State scan summary: ${checked}/${totalStates} checked`,
+    `Working (${working.length}): ${working.join(', ') || 'none'}`,
+    `Partial (${partial.length}): ${partial.join(', ') || 'none'}`,
+    `Failed (${failed.length}): ${failed.join(', ') || 'none'}`,
+  ];
+  if (warnings.length) parts.push(`Details: ${warnings.slice(0, 10).join(' | ')}`);
+  return parts.join(' | ');
+}
+
 const BASE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -424,10 +439,19 @@ async function runUSStateScraperReliable(code = null) {
   const scanType = selectedCode ? `trademark_us_${selectedCode.toLowerCase()}` : 'trademark_us_states';
   if (!selectedCode) {
     const staleBefore = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    await supabase.from('scan_logs').update({
-      completed_at: new Date().toISOString(),
-      error_log: 'Abandoned: backend stopped before scan completion',
-    }).eq('scan_type', scanType).is('completed_at', null).lt('started_at', staleBefore);
+    const { data: staleRows } = await supabase.from('scan_logs')
+      .select('id, error_log')
+      .eq('scan_type', scanType)
+      .is('completed_at', null)
+      .lt('started_at', staleBefore);
+    for (const row of staleRows || []) {
+      await supabase.from('scan_logs').update({
+        completed_at: new Date().toISOString(),
+        error_log: row.error_log
+          ? `${row.error_log} | Abandoned: backend stopped before scan completion`
+          : 'Abandoned: backend stopped before scan completion',
+      }).eq('id', row.id);
+    }
   }
 
   const { data: logEntry, error: logInsertError } = await supabase
@@ -439,6 +463,9 @@ async function runUSStateScraperReliable(code = null) {
   const logId = logEntry?.id;
   const gaps = [];
   const warnings = [];
+  const workingStates = new Set();
+  const partialStates = new Set();
+  const failedStates = new Set();
   let totalFound = 0;
   let fatalError = null;
   let cancelRequested = false;
@@ -454,6 +481,8 @@ async function runUSStateScraperReliable(code = null) {
 
     console.log(`[US-STATES] Scanning ${active.length} states for ${keywords.length} keyword(s), concurrency=${STATE_CONCURRENCY}, taskTimeout=${STATE_KEYWORD_TIMEOUT_MS}ms`);
     const scanAllStates = mapWithConcurrency(active, STATE_CONCURRENCY, async (state) => {
+      let successfulChecks = 0;
+      let failedChecks = 0;
       for (const kw of keywords) {
         if (cancelRequested) return;
         try {
@@ -479,14 +508,27 @@ async function runUSStateScraperReliable(code = null) {
               matches++;
             }
           }
+          successfulChecks++;
           console.log(`[US-STATES] [${state.code}] "${kw.term}" -> ${names.length} results, ${matches} match(es)`);
         } catch (err) {
+          failedChecks++;
           const message = `${state.code}/${kw.term}: ${err.message}`;
           warnings.push(message);
           gaps.push(`${state.code.padEnd(3)} ${state.state.padEnd(20)} | ${state.method} error: ${err.message}`);
           console.error(`[US-STATES] ${message}`);
         }
         await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      if (successfulChecks > 0) workingStates.add(state.code);
+      if (successfulChecks > 0 && failedChecks > 0) partialStates.add(state.code);
+      if (successfulChecks === 0) failedStates.add(state.code);
+
+      if (logId) {
+        const { error: progressError } = await supabase.from('scan_logs').update({
+          total_found: totalFound,
+          error_log: formatStateSummary(active.length, workingStates, partialStates, failedStates, warnings),
+        }).eq('id', logId);
+        if (progressError) console.error('[US-STATES] State-summary update failed:', progressError.message);
       }
     });
     await withTimeout(scanAllStates, STATE_RUN_TIMEOUT_MS, '[US-STATES] complete scan');
@@ -506,7 +548,8 @@ async function runUSStateScraperReliable(code = null) {
     throw err;
   } finally {
     if (logId) {
-      const errorSummary = fatalError?.message || (warnings.length ? warnings.slice(0, 10).join(' | ') : null);
+      const stateSummary = formatStateSummary(active.length, workingStates, partialStates, failedStates, warnings);
+      const errorSummary = fatalError ? `${stateSummary} | Fatal: ${fatalError.message}` : stateSummary;
       const { error: updateError } = await supabase.from('scan_logs').update({
         completed_at: new Date().toISOString(),
         total_found: totalFound,
