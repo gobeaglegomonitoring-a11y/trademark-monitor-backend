@@ -264,12 +264,14 @@ async function scrapeWithBrowser(state, keyword) {
     }
     if (!typed) return [];
 
-    // Submit
+    // Submit — every path guarded: a page that closes/crashes on submit
+    // (seen on MD) must not throw past this point, or a working search
+    // gets wasted on an uncaught "Target closed" error.
     if (state.searchSubmit) {
       try { await page.click(state.searchSubmit); }
-      catch (_) { await page.keyboard.press('Enter'); }
+      catch (_) { await page.keyboard.press('Enter').catch(() => {}); }
     } else {
-      await page.keyboard.press('Enter');
+      await page.keyboard.press('Enter').catch(() => {});
     }
 
     await page.waitForNavigation({ waitUntil, timeout: actionTimeout }).catch(() => {});

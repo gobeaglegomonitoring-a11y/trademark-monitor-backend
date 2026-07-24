@@ -42,12 +42,12 @@
     "method": "browser", "searchParam": "businessName",
     "searchInput": "input[name='businessName'], input#businessName, input[placeholder*='business' i], input[placeholder*='name' i], input[type='search'], input[type='text']",
     "navigationTimeout": 120000,
-    "selectorTimeout": 30000,
+    "selectorTimeout": 45000,
     "actionTimeout": 90000,
     "settleDelay": 10000,
     "waitUntil": "domcontentloaded",
-    "retries": 2,
-    "accessible": true, "notes": "React SPA — Puppeteer required; longer timeouts for SPA hydration"
+    "retries": 1,
+    "accessible": true, "notes": "React SPA — Puppeteer required; longer timeouts for SPA hydration. retries kept low (1) since the 600s per-state ceiling can't fit 3 full attempts at this site's hydration speed — better to get one well-timed attempt than guarantee hitting the wall mid-retry."
   },
   {
     "state": "Colorado", "code": "CO",
