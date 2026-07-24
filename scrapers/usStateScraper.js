@@ -14,6 +14,32 @@ const STATE_CONCURRENCY = 1;
 const STATE_KEYWORD_TIMEOUT_MS = Math.max(10 * 60 * 1000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 0);
 const STATE_RUN_TIMEOUT_MS = Math.max(90 * 60 * 1000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 0);
 
+// Best-effort container memory check (cgroup v2, falling back to v1). Render's
+// free tier OS-kills the whole process with no catchable error once memory
+// crosses its limit — by that point nothing (including the report step that
+// runs after this scraper) can recover. Returns null if unreadable (e.g. not
+// running in a cgroup, like local Windows dev), so callers must treat null as
+// "unknown, don't act on it" rather than "safe".
+function getContainerMemoryRatio() {
+  try {
+    const usage = Number(fs.readFileSync('/sys/fs/cgroup/memory.current', 'utf8').trim());
+    const limitRaw = fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();
+    if (limitRaw === 'max') return null;
+    const limit = Number(limitRaw);
+    if (!usage || !limit) return null;
+    return usage / limit;
+  } catch (_) {
+    try {
+      const usage = Number(fs.readFileSync('/sys/fs/cgroup/memory/memory.usage_in_bytes', 'utf8').trim());
+      const limit = Number(fs.readFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'utf8').trim());
+      if (!usage || !limit) return null;
+      return usage / limit;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 function withTimeout(promise, ms, label) {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -519,7 +545,24 @@ async function runUSStateScraperReliable(code = null) {
           gaps.push(`${state.code.padEnd(3)} ${state.state.padEnd(20)} | ${state.method} error: ${err.message}`);
           console.error(`[US-STATES] ${message}`);
         }
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // Give Render time to actually reclaim the just-closed Chromium
+        // process's memory before the next state launches a fresh one —
+        // launching back-to-back with reclamation still in flight is what
+        // pushes total usage past the free-tier ceiling and gets the whole
+        // process OS-killed (not a catchable error, so no log/cleanup runs).
+        if (global.gc) global.gc();
+        await new Promise(resolve => setTimeout(resolve, state.method === 'browser' ? 1500 : 250));
+
+        // Bail out of remaining states before memory pressure gets the whole
+        // process OS-killed. A partial state summary that reaches the report
+        // step beats a complete one that never does.
+        const memRatio = getContainerMemoryRatio();
+        if (memRatio !== null && memRatio > 0.85 && !cancelRequested) {
+          cancelRequested = true;
+          const msg = `Stopping remaining states early: container memory at ${Math.round(memRatio * 100)}% — finishing up to protect the scan from an uncatchable OOM kill.`;
+          warnings.push(msg);
+          console.warn(`[US-STATES] ${msg}`);
+        }
       }
       if (successfulChecks > 0) workingStates.add(state.code);
       if (successfulChecks > 0 && failedChecks > 0) partialStates.add(state.code);
