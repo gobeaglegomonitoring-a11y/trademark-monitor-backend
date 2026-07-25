@@ -100,6 +100,22 @@ function badge(status) {
   return `<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;${colors[s] || colors.new}">${s}</span>`;
 }
 
+// Bounds how many rows any single table renders, regardless of how large the
+// underlying dataset grows. Puppeteer rendering thousands of rows into a
+// 100+ page PDF has been observed to hang long enough that Render kills the
+// whole backend process -- this keeps every report (scheduled or on-demand)
+// fast and safe no matter how much data exists, instead of only protecting
+// the on-demand endpoint behind a reject-if-too-big check.
+const MAX_ROWS_PER_SECTION = 300;
+
+function capRows(rows) {
+  if (rows.length <= MAX_ROWS_PER_SECTION) return { shown: rows, note: '' };
+  return {
+    shown: rows.slice(0, MAX_ROWS_PER_SECTION),
+    note: `<p class="truncate-note">Showing the most recent ${MAX_ROWS_PER_SECTION} of ${rows.length} — export with a narrower date range or keyword for full detail.</p>`,
+  };
+}
+
 function section(title, color, count, html) {
   if (count === 0) return '';
   return `
@@ -141,7 +157,8 @@ function attentionTable(matches, scanStartedAt) {
     return '<div class="clear-message">No unresolved new matches currently require attention.</div>';
   }
 
-  const trs = rows.map(r => {
+  const { shown, note } = capRows(rows);
+  const trs = shown.map(r => {
     const isLatest = scanStartedAt && new Date(r.date) >= new Date(scanStartedAt);
     const priority = isLatest ? 'New this scan' : Number(r.score) >= 0.9 ? 'Strong match' : 'Pending review';
     return `<tr>
@@ -153,7 +170,7 @@ function attentionTable(matches, scanStartedAt) {
 
   return `<table><thead><tr>
     <th>Priority</th><th>Keyword</th><th>Source</th><th>Potential Match</th><th>Found</th>
-  </tr></thead><tbody>${trs}</tbody></table>`;
+  </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
 function keywordTable(monitoredKeywords) {
@@ -168,7 +185,8 @@ function keywordTable(monitoredKeywords) {
 
 function trademarkTable(rows) {
   if (!rows.length) return '';
-  const trs = rows.map(r => `
+  const { shown, note } = capRows(rows);
+  const trs = shown.map(r => `
     <tr>
       <td>${h(r.matched_keyword)}</td>
       <td>${h(r.filing_name)}</td>
@@ -178,12 +196,13 @@ function trademarkTable(rows) {
     </tr>`).join('');
   return `<table><thead><tr>
     <th>Keyword</th><th>Filing Name</th><th>Registry</th><th>Status</th><th>Date</th>
-  </tr></thead><tbody>${trs}</tbody></table>`;
+  </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
 function domainTable(rows) {
   if (!rows.length) return '';
-  const trs = rows.map(r => `
+  const { shown, note } = capRows(rows);
+  const trs = shown.map(r => `
     <tr>
       <td>${h(r.keyword_matched)}</td>
       <td>${h(r.domain)}</td>
@@ -192,12 +211,13 @@ function domainTable(rows) {
     </tr>`).join('');
   return `<table><thead><tr>
     <th>Keyword</th><th>Domain</th><th>Status</th><th>Date</th>
-  </tr></thead><tbody>${trs}</tbody></table>`;
+  </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
 function marketplaceTable(rows) {
   if (!rows.length) return '';
-  const trs = rows.map(r => `
+  const { shown, note } = capRows(rows);
+  const trs = shown.map(r => `
     <tr>
       <td>${h(r.keyword_matched)}</td>
       <td>${h(r.platform)}</td>
@@ -208,12 +228,13 @@ function marketplaceTable(rows) {
     </tr>`).join('');
   return `<table><thead><tr>
     <th>Keyword</th><th>Platform</th><th>Listing</th><th>Seller</th><th>Status</th><th>Date</th>
-  </tr></thead><tbody>${trs}</tbody></table>`;
+  </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
 function socialTable(rows) {
   if (!rows.length) return '';
-  const trs = rows.map(r => `
+  const { shown, note } = capRows(rows);
+  const trs = shown.map(r => `
     <tr>
       <td>${h(r.keyword_matched)}</td>
       <td>${h(r.platform)}</td>
@@ -223,7 +244,7 @@ function socialTable(rows) {
     </tr>`).join('');
   return `<table><thead><tr>
     <th>Keyword</th><th>Platform</th><th>Handle / URL</th><th>Status</th><th>Date</th>
-  </tr></thead><tbody>${trs}</tbody></table>`;
+  </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
 function buildHtml({ matches, keywords, dateFrom, dateTo, monitoredKeywords, scanStartedAt }) {
@@ -268,6 +289,7 @@ function buildHtml({ matches, keywords, dateFrom, dateTo, monitoredKeywords, sca
   .active { color:#1E7A4A; font-weight:bold; }
   .inactive { color:#888; font-weight:bold; }
   .clear-message { padding:14px; background:#F4F6F9; color:#555; border-radius:6px; }
+  .truncate-note { padding:8px 4px; color:#888; font-size:11px; font-style:italic; }
 
   table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 8px; }
   th { background: #1B2A4A; color: #fff; padding: 8px 10px; text-align: left; font-size: 11px;

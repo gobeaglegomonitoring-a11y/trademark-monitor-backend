@@ -2,10 +2,12 @@ const express = require('express');
 const router  = express.Router();
 const { generatePDF, countMatches } = require('../services/pdfGenerator');
 
-// A large unfiltered export has been observed to hang Puppeteer long enough
-// that Render kills the whole backend process -- this takes the live site
-// down for every user, not just the one requesting the export.
-const MAX_PDF_ROWS = 500;
+// generatePDF() itself now caps how many rows any single report section
+// renders (see MAX_ROWS_PER_SECTION in pdfGenerator.js), so it stays fast
+// and safe no matter how large the underlying dataset is -- this is just a
+// sanity ceiling against a truly unbounded/abusive request, not the primary
+// safeguard anymore.
+const SANITY_MAX_PDF_ROWS = 50000;
 
 // POST /api/reports/pdf
 // Body (all optional): { keywords: [], dateFrom: "YYYY-MM-DD", dateTo: "YYYY-MM-DD", status: "new" }
@@ -15,12 +17,12 @@ router.post('/pdf', async (req, res) => {
     const reportStatus = status === 'all' ? null : (status || 'new');
 
     const rowCount = await countMatches({ keywords, dateFrom, dateTo, status: reportStatus });
-    if (rowCount > MAX_PDF_ROWS) {
+    if (rowCount > SANITY_MAX_PDF_ROWS) {
       return res.status(400).json({
         error: 'Too many matches for one report',
-        detail: `This selection has ${rowCount} matches, which would generate a report too large to render safely (limit: ${MAX_PDF_ROWS}). Narrow the filters -- e.g. a date range, a single keyword, or Status = New -- and try again.`,
+        detail: `This selection has ${rowCount} matches. Narrow the filters -- e.g. a date range or a single keyword -- and try again.`,
         rowCount,
-        limit: MAX_PDF_ROWS,
+        limit: SANITY_MAX_PDF_ROWS,
       });
     }
 
