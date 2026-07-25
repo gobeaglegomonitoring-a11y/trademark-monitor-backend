@@ -40,6 +40,33 @@ async function fetchMatches({ keywords, dateFrom, dateTo, status }) {
   };
 }
 
+// Cheap pre-check before paying for a full fetch + Puppeteer render. A large
+// unfiltered export (thousands of rows -> 100+ page PDF) has been observed
+// to hang Puppeteer long enough that Render kills the whole backend process,
+// taking the live site down for everyone, not just the exporting request.
+async function countMatches({ keywords, dateFrom, dateTo, status }) {
+  const tables = [
+    { table: 'trademark_matches',   kwCol: 'matched_keyword' },
+    { table: 'domain_matches',      kwCol: 'keyword_matched' },
+    { table: 'marketplace_matches', kwCol: 'keyword_matched' },
+    { table: 'social_matches',      kwCol: 'keyword_matched' },
+  ];
+
+  const counts = await Promise.all(tables.map(({ table, kwCol }) => {
+    let query = supabase.from(table).select('id', { count: 'exact', head: true });
+    if (keywords && keywords.length > 0) query = query.in(kwCol, keywords);
+    if (dateFrom) query = query.gte('created_at', dateFrom);
+    if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
+    if (status)   query = query.eq('status', status);
+    return query;
+  }));
+
+  return counts.reduce((total, { count, error }) => {
+    if (error) throw new Error(error.message);
+    return total + (count || 0);
+  }, 0);
+}
+
 async function fetchMonitoredKeywords() {
   const { data, error } = await supabase
     .from('keywords')
@@ -337,4 +364,4 @@ async function generatePDF({ keywords, dateFrom, dateTo, status, scanStartedAt }
   }
 }
 
-module.exports = { generatePDF };
+module.exports = { generatePDF, countMatches };
