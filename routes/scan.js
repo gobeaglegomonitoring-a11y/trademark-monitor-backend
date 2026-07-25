@@ -113,10 +113,20 @@ router.post('/runall', async (req, res) => {
       };
       const matchCount = Object.values(breakdown).reduce((total, count) => total + count, 0);
 
+      const preMem = process.memoryUsage();
+      console.log(`[SCAN] Starting PDF generation. Memory before: rss=${(preMem.rss / 1048576).toFixed(0)}MB heapUsed=${(preMem.heapUsed / 1048576).toFixed(0)}MB.`);
+      try {
+        const chromeCount = require('child_process').execSync('pgrep -c -f chrom || true').toString().trim();
+        console.log(`[SCAN] Chromium processes still alive before PDF generation: ${chromeCount || '0'}`);
+      } catch (_) { /* pgrep unavailable (e.g. local Windows dev) -- non-fatal */ }
+
       // Include all statuses and mark records inserted during this scan as highest priority.
       const pdf = await generatePDF({ status: null, scanStartedAt: iso });
+      console.log(`[SCAN] PDF generated successfully (${pdf.length} bytes).`);
+
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `trademark-monitor-report-${stamp}.pdf`;
+      console.log(`[SCAN] Starting email send to ${settings.email}...`);
       await sendScheduledScanReport({
         to: settings.email,
         pdf,
@@ -126,6 +136,7 @@ router.post('/runall', async (req, res) => {
         scanErrors: errors,
         scanTime: new Date().toUTCString().replace(' GMT', ''),
       });
+      console.log('[SCAN] Email sent successfully.');
 
       await supabase
         .from('alert_settings')
@@ -138,6 +149,7 @@ router.post('/runall', async (req, res) => {
   } catch (reportErr) {
     // Reporting must never prevent the completed scan results from being retained.
     console.error('[SCAN] PDF report error:', reportErr.message);
+    console.error('[SCAN] PDF report error stack:', reportErr.stack);
   }
 
   console.log('[SCAN] All scrapers finished. Results:', results, 'Errors:', errors);

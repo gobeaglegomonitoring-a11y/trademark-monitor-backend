@@ -497,6 +497,11 @@ async function runUSStateScraperReliable(code = null) {
   let totalFound = 0;
   let fatalError = null;
   let cancelRequested = false;
+  // Declared here (not inside try) so the catch block below can still
+  // reference and drain it -- Promise.race doesn't cancel the losing
+  // promise, so when the run timeout fires, this keeps executing in the
+  // background unless we explicitly wait for it to notice cancelRequested.
+  let scanAllStates;
 
   try {
     const { data: keywords, error: keywordError } = await supabase
@@ -508,7 +513,7 @@ async function runUSStateScraperReliable(code = null) {
     }
 
     console.log(`[US-STATES] Scanning ${active.length} states for ${keywords.length} keyword(s), concurrency=${STATE_CONCURRENCY}, taskTimeout=${STATE_KEYWORD_TIMEOUT_MS}ms`);
-    const scanAllStates = mapWithConcurrency(active, STATE_CONCURRENCY, async (state) => {
+    scanAllStates = mapWithConcurrency(active, STATE_CONCURRENCY, async (state) => {
       let successfulChecks = 0;
       let failedChecks = 0;
       for (const kw of keywords) {
@@ -590,6 +595,30 @@ async function runUSStateScraperReliable(code = null) {
   } catch (err) {
     cancelRequested = true;
     fatalError = err;
+
+    // Promise.race([scanAllStates, timeout]) rejecting does NOT stop
+    // scanAllStates -- it keeps running in the background. The state loop
+    // only checks cancelRequested at the top of its next keyword iteration,
+    // so whatever state/browser was in flight when the timeout fired can
+    // still be alive for up to STATE_KEYWORD_TIMEOUT_MS after we return here.
+    // If PDF generation launches its own browser while that's still alive,
+    // the combined memory is a plausible cause of the crash seen right after
+    // "Scheduled scan complete" in production. Wait (bounded) for it to
+    // actually finish before handing control back.
+    if (scanAllStates) {
+      const before = process.memoryUsage();
+      console.warn(`[US-STATES] Run timeout fired with a state task still in flight. rss=${(before.rss / 1048576).toFixed(0)}MB heapUsed=${(before.heapUsed / 1048576).toFixed(0)}MB. Waiting up to 90s for it to settle and close its browser.`);
+      try {
+        await withTimeout(scanAllStates, 90 * 1000, '[US-STATES] post-timeout drain');
+        console.log('[US-STATES] In-flight state task settled cleanly after the run timeout.');
+      } catch (drainErr) {
+        console.warn(`[US-STATES] In-flight state task did NOT settle within the 90s grace period (${drainErr.message}) -- a Chromium process may still be alive when the caller proceeds.`);
+      }
+      if (global.gc) global.gc();
+      const after = process.memoryUsage();
+      console.warn(`[US-STATES] Post-drain memory: rss=${(after.rss / 1048576).toFixed(0)}MB heapUsed=${(after.heapUsed / 1048576).toFixed(0)}MB (delta rss=${((after.rss - before.rss) / 1048576).toFixed(0)}MB).`);
+    }
+
     throw err;
   } finally {
     if (logId) {
