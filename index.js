@@ -10,6 +10,7 @@ app.use(cors({
   origin: [
     "http://localhost:3000",
     "https://trademark-monitor-frontend.vercel.app",
+    "https://trademark-monitor-frontend-sable.vercel.app",
     "https://trade-mark-frontend.vercel.app",
     "https://gobeaglego.com",
     "https://www.gobeaglego.com",
