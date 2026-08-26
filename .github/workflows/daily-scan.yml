@@ -20,7 +20,7 @@ jobs:
             -H "Content-Type: application/json" \
             -H "x-scan-api-key: ${{ secrets.SCAN_API_KEY }}" \
             --max-time 60 \
-            https://trade-mark-sys.onrender.com/api/scan/runall)
+            https://trademark-monitor-backend.onrender.com/api/scan/runall)
 
           echo "HTTP status: $response"
           echo "Response body:"
