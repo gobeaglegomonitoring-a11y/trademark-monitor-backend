@@ -78,7 +78,7 @@ async function searchIPONZ(browser, keyword) {
 
     // Fill in the trademark denomination/title field
     const deno = '#MainContent_ctrlTMSearch_txtDeno';
-    await page.waitForSelector(deno, { timeout: 8000 });
+    await page.waitForSelector(deno, { timeout: 20000 });
     await page.$eval(deno, el => { el.value = ''; });
     await page.type(deno, keyword, { delay: 60 });
     console.log(`[IPONZ] Typed "${keyword}"`);
