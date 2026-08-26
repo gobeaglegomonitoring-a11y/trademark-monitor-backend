@@ -227,6 +227,8 @@ async function isDuplicate(filingName, matchedKeyword) {
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
 async function runEUIPOScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('euipo');
   const startedAt = new Date().toISOString();
   let totalInserted = 0;
   let errorMsg = null;
@@ -251,6 +253,11 @@ async function runEUIPOScraper() {
     console.log(`[EUIPO] Found ${keywords.length} active keyword(s) to scan.`);
 
     for (const kw of keywords) {
+      if (shouldStop('euipo')) {
+        console.log('[EUIPO] Stop requested — ending scan early.');
+        errorMsg = 'Stopped by user';
+        break;
+      }
       try {
         console.log(`[EUIPO] Searching for: "${kw.term}"`);
 

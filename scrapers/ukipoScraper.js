@@ -110,6 +110,8 @@ async function isDuplicate(filingName, matchedKeyword) {
 }
 
 async function runUKIPOScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('ukipo');
   const startedAt = new Date().toISOString();
   let totalInserted = 0;
   let errorMsg = null;
@@ -133,6 +135,11 @@ async function runUKIPOScraper() {
     console.log(`[UKIPO] Found ${keywords.length} active keyword(s) to scan.`);
 
     for (const kw of keywords) {
+      if (shouldStop('ukipo')) {
+        console.log('[UKIPO] Stop requested — ending scan early.');
+        errorMsg = 'Stopped by user';
+        break;
+      }
       try {
         console.log(`[UKIPO] Searching for: "${kw.term}"`);
         const hits = await searchUKIPO(kw.term);

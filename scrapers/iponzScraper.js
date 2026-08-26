@@ -264,6 +264,8 @@ async function isDuplicate(filingName, keyword) {
 }
 
 async function runIPONZScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('iponz');
   console.log('[IPONZ] Starting scraper...');
 
   const { data: logEntry } = await supabase
@@ -294,6 +296,11 @@ async function runIPONZScraper() {
     const browser = await launchBrowser();
 
     for (const kw of keywords) {
+      if (shouldStop('iponz')) {
+        console.log('[IPONZ] Stop requested — ending scan early.');
+        errorLog = 'Stopped by user';
+        break;
+      }
       try {
         console.log(`[IPONZ] Searching: "${kw.term}"`);
         const hits = await searchIPONZ(browser, kw.term);

@@ -61,6 +61,8 @@ async function insertIfNew(keyword, domain) {
 }
 
 async function runDomainScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('domains');
   console.log('[DOMAINS] Starting domain typo scan (DNS mode)...');
 
   const { data: keywords } = await supabase
@@ -77,10 +79,20 @@ async function runDomainScraper() {
   let errorLog = null;
 
   for (const kw of keywords) {
+    if (shouldStop('domains')) {
+      console.log('[DOMAINS] Stop requested — ending scan early.');
+      errorLog = 'Stopped by user';
+      break;
+    }
     const typos = generateTypos(kw.term);
     console.log(`[DOMAINS] "${kw.term}" → ${typos.length} domain variants to check`);
 
     for (const domain of typos) {
+      if (shouldStop('domains')) {
+        console.log('[DOMAINS] Stop requested — ending scan early.');
+        errorLog = 'Stopped by user';
+        break;
+      }
       try {
         const registered = await isDomainRegistered(domain);
         if (registered) {

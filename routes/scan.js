@@ -166,4 +166,15 @@ router.get('/status', (req, res) => {
   res.json(scanState);
 });
 
+// POST /api/scan/stop/:key
+// Asks a running scraper (matched by its Scan Control card key, e.g. "euipo",
+// "marketplace", "us-states-v1") to stop at its next safe checkpoint. Not a
+// hard kill -- the scraper finishes its current item/state and returns
+// whatever it found so far.
+const { requestStop } = require('../lib/scanControl');
+router.post('/stop/:key', (req, res) => {
+  requestStop(req.params.key);
+  res.json({ message: `Stop requested for "${req.params.key}"` });
+});
+
 module.exports = router;

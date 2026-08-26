@@ -135,6 +135,8 @@ async function isDuplicate(filingName, keyword) {
 }
 
 async function runIPAustraliaScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('ipau');
   console.log('[IP-AU] Starting scraper...');
 
   const { data: logEntry } = await supabase
@@ -165,6 +167,11 @@ async function runIPAustraliaScraper() {
     const browser = await launchBrowser();
 
     for (const kw of keywords) {
+      if (shouldStop('ipau')) {
+        console.log('[IP-AU] Stop requested — ending scan early.');
+        errorLog = 'Stopped by user';
+        break;
+      }
       try {
         console.log(`[IP-AU] Searching: "${kw.term}"`);
         const hits = await searchIPAustralia(browser, kw.term);

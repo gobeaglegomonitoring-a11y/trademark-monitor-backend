@@ -186,6 +186,8 @@ async function insertMatch(platform, handleOrUrl, keyword, snippet) {
 // attempts per platform (~20-30s worst case) instead of an open-ended 2-hour
 // budget, so this stays safe to run inside the daily cron job.
 async function runSocialScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('social');
   const startedAt = new Date().toISOString();
   let totalInserted = 0;
   let errorMsg = null;
@@ -208,6 +210,11 @@ async function runSocialScraper() {
     console.log(`[Social] Found ${keywords.length} active keyword(s) to scan.`);
 
     for (const kw of keywords) {
+      if (shouldStop('social')) {
+        console.log('[Social] Stop requested — ending scan early.');
+        errorMsg = 'Stopped by user';
+        break;
+      }
       console.log(`\n[Social] === Searching for: "${kw.term}" ===`);
 
       // ── Instagram ──────────────────────────────────────────────────────────

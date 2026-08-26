@@ -171,6 +171,8 @@ async function isDuplicate(filingName, keyword) {
 }
 
 async function runUSPTOScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('uspto');
   console.log('[USPTO] Starting scraper...');
 
   const { data: logEntry } = await supabase
@@ -201,6 +203,11 @@ async function runUSPTOScraper() {
     const browser = await launchBrowser();
 
     for (const kw of keywords) {
+      if (shouldStop('uspto')) {
+        console.log('[USPTO] Stop requested — ending scan early.');
+        errorLog = 'Stopped by user';
+        break;
+      }
       try {
         console.log(`[USPTO] Searching: "${kw.term}"`);
         const hits = await searchUSPTO(browser, kw.term);

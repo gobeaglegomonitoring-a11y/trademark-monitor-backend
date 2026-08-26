@@ -457,6 +457,8 @@ async function runUSStateScraper(code = null) {
 }
 
 async function runUSStateScraperReliable(code = null) {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('us-states-v1');
   const selectedCode = code ? String(code).trim().toUpperCase() : null;
   const active = getSupportedStates(selectedCode);
   if (selectedCode && active.length === 0) {
@@ -567,6 +569,13 @@ async function runUSStateScraperReliable(code = null) {
           const msg = `Stopping remaining states early: container memory at ${Math.round(memRatio * 100)}% — finishing up to protect the scan from an uncatchable OOM kill.`;
           warnings.push(msg);
           console.warn(`[US-STATES] ${msg}`);
+        }
+
+        if (shouldStop('us-states-v1') && !cancelRequested) {
+          cancelRequested = true;
+          const msg = 'Stopped by user.';
+          warnings.push(msg);
+          console.warn('[US-STATES] Stop requested — finishing up current state, remaining states skipped.');
         }
       }
       if (successfulChecks > 0) workingStates.add(state.code);

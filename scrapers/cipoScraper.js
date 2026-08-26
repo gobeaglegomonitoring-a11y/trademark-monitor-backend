@@ -113,6 +113,8 @@ async function insertMatch(filing, keyword, score) {
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
 async function runCIPOScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('cipo');
   const startedAt = new Date().toISOString();
   let totalInserted = 0;
   let errorMsg = null;
@@ -135,6 +137,11 @@ async function runCIPOScraper() {
     console.log(`[CIPO] Found ${keywords.length} active keyword(s) to scan.`);
 
     for (const kw of keywords) {
+      if (shouldStop('cipo')) {
+        console.log('[CIPO] Stop requested — ending scan early.');
+        errorMsg = 'Stopped by user';
+        break;
+      }
       console.log(`[CIPO] Searching for: "${kw.term}"`);
 
       try {

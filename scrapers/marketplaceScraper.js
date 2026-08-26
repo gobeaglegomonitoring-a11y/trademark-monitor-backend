@@ -511,6 +511,8 @@ function withPlatformTimeout(promise, platform, keyword) {
 }
 
 async function runMarketplaceScraper() {
+  const { shouldStop, clearStop } = require('../lib/scanControl');
+  clearStop('marketplace');
   if (marketplaceScanRunning) {
     console.log('[MARKETPLACE] Scan already running - skipping duplicate request.');
     return 0;
@@ -552,8 +554,14 @@ async function runMarketplaceScraper() {
       summary[name] = { found: 0, inserted: 0, duplicates: 0, errors: 0 };
     }
 
+    outer:
     for (const kw of keywords) {
       for (const { name, fn } of platformFns) {
+        if (shouldStop('marketplace')) {
+          console.log('[MARKETPLACE] Stop requested — ending scan early.');
+          errorLog = 'Stopped by user';
+          break outer;
+        }
         try {
           const { listings, skipped } = await withPlatformTimeout(fn(kw.term), name, kw.term);
           if (skipped) continue;
