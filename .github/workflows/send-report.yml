@@ -1,0 +1,37 @@
+name: Send Scheduled Report
+
+on:
+  schedule:
+    # Exact times the client wants the report: 11 PM, 5 AM, and 11 AM EDT
+    # (UTC-4). Offset 7 minutes past the hour to avoid GitHub's most
+    # congested scheduling minute (:00).
+    - cron: '7 3,9,15 * * *'
+  workflow_dispatch:        # allow manual trigger from GitHub Actions tab
+
+jobs:
+  send-report:
+    name: Email Current Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger report email on Render backend
+        run: |
+          echo "Sending report at $(date -u)"
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-scan-api-key: ${{ secrets.SCAN_API_KEY }}" \
+            --max-time 60 \
+            https://trademark-monitor-backend.onrender.com/api/scan/send-report)
+
+          echo "HTTP status: $response"
+          echo "Response body:"
+          cat /tmp/response.json
+
+          if [ "$response" != "200" ] && [ "$response" != "202" ]; then
+            echo "Report send failed with HTTP $response"
+            exit 1
+          fi
+
+          echo "Report send triggered successfully."
