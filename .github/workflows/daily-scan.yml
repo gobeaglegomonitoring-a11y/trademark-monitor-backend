@@ -1,6 +1,6 @@
 name: Trademark Scan
 
-on:
+"on":
   schedule:
     # Starts the scan 4 hours BEFORE each report is due (see send-report.yml),
     # giving it a head start so it has finished (even the slow US-states

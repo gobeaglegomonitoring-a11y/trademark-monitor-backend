@@ -1,6 +1,6 @@
 name: Send Scheduled Report
 
-on:
+"on":
   schedule:
     # Exact times the client wants the report: 11 PM, 5 AM, and 11 AM EDT
     # (UTC-4). Offset 7 minutes past the hour to avoid GitHub's most
