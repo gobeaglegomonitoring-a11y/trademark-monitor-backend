@@ -2,11 +2,9 @@ name: Trademark Scan
 
 on:
   schedule:
-    # TEMPORARY test schedule -- fires today at 08:18 UTC to verify the
-    # queue-delay fix. Revert to the real 3x/day schedule after testing.
-    - cron: '18 8 * * *'
-    # Real schedule (restore after test):
-    # - cron: '7 3,9,15 * * *'  # three times daily: ~11 PM, 5 AM, and 11 AM EDT (UTC-4)
+    # Offset 7 minutes past the hour -- GitHub's docs call out :00 as the
+    # most congested minute for scheduled workflows.
+    - cron: '7 3,9,15 * * *'  # three times daily: ~11 PM, 5 AM, and 11 AM EDT (UTC-4)
   workflow_dispatch:        # allow manual trigger from GitHub Actions tab
 
 jobs:
