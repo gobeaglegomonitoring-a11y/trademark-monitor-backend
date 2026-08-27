@@ -44,6 +44,65 @@ async function runWithTimeout(scraper) {
   }
 }
 
+// Generates the PDF report from current DB state and emails it. `sinceIso`
+// controls the "new since" window used for the match-count breakdown --
+// pass a scan's own start time when called right after that scan, or fall
+// back to last_alerted_at (or 24h ago) for a standalone, decoupled send.
+async function sendReportEmail(sinceIso, scanErrors = {}) {
+  const { data: settings, error: settingsError } = await supabase
+    .from('alert_settings')
+    .select('email, alert_enabled, last_alerted_at')
+    .eq('id', SETTINGS_ID)
+    .maybeSingle();
+  if (settingsError) throw settingsError;
+
+  if (!settings?.alert_enabled || !settings?.email) {
+    console.log('[REPORT] Not sent - alerts are disabled or no recipient is configured');
+    return;
+  }
+
+  const iso = sinceIso || settings.last_alerted_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const [tm, dm, mm, sm] = await Promise.all([
+    supabase.from('trademark_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
+    supabase.from('domain_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
+    supabase.from('marketplace_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
+    supabase.from('social_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
+  ]);
+  const breakdown = {
+    'Trademark Registries': tm.count || 0,
+    Domains: dm.count || 0,
+    Marketplaces: mm.count || 0,
+    'Social Media': sm.count || 0,
+  };
+  const matchCount = Object.values(breakdown).reduce((total, count) => total + count, 0);
+
+  const preMem = process.memoryUsage();
+  console.log(`[REPORT] Starting PDF generation. Memory before: rss=${(preMem.rss / 1048576).toFixed(0)}MB heapUsed=${(preMem.heapUsed / 1048576).toFixed(0)}MB.`);
+
+  const pdf = await generatePDF({ status: null, scanStartedAt: iso });
+  console.log(`[REPORT] PDF generated successfully (${pdf.length} bytes).`);
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `trademark-monitor-report-${stamp}.pdf`;
+  console.log(`[REPORT] Starting email send to ${settings.email}...`);
+  await sendScheduledScanReport({
+    to: settings.email,
+    pdf,
+    filename,
+    matchCount,
+    breakdown,
+    scanErrors,
+    scanTime: new Date().toUTCString().replace(' GMT', ''),
+  });
+  console.log('[REPORT] Email sent successfully.');
+
+  await supabase
+    .from('alert_settings')
+    .update({ last_alerted_at: new Date().toISOString() })
+    .eq('id', SETTINGS_ID);
+  console.log(`[REPORT] Sent to ${settings.email} - ${matchCount} new matches`);
+}
+
 // POST /api/scan/runall
 // Called by the scheduled GitHub Actions workflow three times per day.
 // Requires header: x-scan-api-key: <SCAN_API_KEY>
@@ -90,62 +149,7 @@ router.post('/runall', async (req, res) => {
   console.log(`[SCAN] Scheduled scan complete at ${new Date().toISOString()}`);
 
   try {
-    const { data: settings, error: settingsError } = await supabase
-      .from('alert_settings')
-      .select('email, alert_enabled')
-      .eq('id', SETTINGS_ID)
-      .maybeSingle();
-    if (settingsError) throw settingsError;
-
-    if (settings?.alert_enabled && settings?.email) {
-      const iso = scanStartTime.toISOString();
-      const [tm, dm, mm, sm] = await Promise.all([
-        supabase.from('trademark_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
-        supabase.from('domain_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
-        supabase.from('marketplace_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
-        supabase.from('social_matches').select('id', { count: 'exact', head: true }).gte('created_at', iso),
-      ]);
-      const breakdown = {
-        'Trademark Registries': tm.count || 0,
-        Domains: dm.count || 0,
-        Marketplaces: mm.count || 0,
-        'Social Media': sm.count || 0,
-      };
-      const matchCount = Object.values(breakdown).reduce((total, count) => total + count, 0);
-
-      const preMem = process.memoryUsage();
-      console.log(`[SCAN] Starting PDF generation. Memory before: rss=${(preMem.rss / 1048576).toFixed(0)}MB heapUsed=${(preMem.heapUsed / 1048576).toFixed(0)}MB.`);
-      try {
-        const chromeCount = require('child_process').execSync('pgrep -c -f chrom || true').toString().trim();
-        console.log(`[SCAN] Chromium processes still alive before PDF generation: ${chromeCount || '0'}`);
-      } catch (_) { /* pgrep unavailable (e.g. local Windows dev) -- non-fatal */ }
-
-      // Include all statuses and mark records inserted during this scan as highest priority.
-      const pdf = await generatePDF({ status: null, scanStartedAt: iso });
-      console.log(`[SCAN] PDF generated successfully (${pdf.length} bytes).`);
-
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `trademark-monitor-report-${stamp}.pdf`;
-      console.log(`[SCAN] Starting email send to ${settings.email}...`);
-      await sendScheduledScanReport({
-        to: settings.email,
-        pdf,
-        filename,
-        matchCount,
-        breakdown,
-        scanErrors: errors,
-        scanTime: new Date().toUTCString().replace(' GMT', ''),
-      });
-      console.log('[SCAN] Email sent successfully.');
-
-      await supabase
-        .from('alert_settings')
-        .update({ last_alerted_at: new Date().toISOString() })
-        .eq('id', SETTINGS_ID);
-      console.log(`[SCAN] PDF report sent to ${settings.email} - ${matchCount} new matches`);
-    } else {
-      console.log('[SCAN] PDF report not sent - alerts are disabled or no recipient is configured');
-    }
+    await sendReportEmail(scanStartTime.toISOString(), errors);
   } catch (reportErr) {
     // Reporting must never prevent the completed scan results from being retained.
     console.error('[SCAN] PDF report error:', reportErr.message);
@@ -154,6 +158,26 @@ router.post('/runall', async (req, res) => {
 
   console.log('[SCAN] All scrapers finished. Results:', results, 'Errors:', errors);
   scanState = { ...scanState, running: false, finishedAt: new Date().toISOString() };
+});
+
+// POST /api/scan/send-report
+// Sends the report email right now, using whatever is currently in the
+// database -- does NOT run any scrapers. Used to guarantee the client's
+// report arrives at an exact clock time, decoupled from however long the
+// scan (started earlier, as a head start) actually took to finish.
+// Requires header: x-scan-api-key: <SCAN_API_KEY>
+router.post('/send-report', async (req, res) => {
+  const apiKey = req.headers['x-scan-api-key'];
+  if (!apiKey || apiKey !== process.env.SCAN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.status(202).json({ status: 'sending' });
+  try {
+    await sendReportEmail(null, {});
+  } catch (err) {
+    console.error('[REPORT] send-report error:', err.message);
+    console.error('[REPORT] send-report error stack:', err.stack);
+  }
 });
 
 // GitHub Actions polls this endpoint to keep free Render services awake until

@@ -2,9 +2,12 @@ name: Trademark Scan
 
 on:
   schedule:
-    # Offset 7 minutes past the hour -- GitHub's docs call out :00 as the
-    # most congested minute for scheduled workflows.
-    - cron: '7 3,9,15 * * *'  # three times daily: ~11 PM, 5 AM, and 11 AM EDT (UTC-4)
+    # Starts the scan 4 hours BEFORE each report is due (see send-report.yml),
+    # giving it a head start so it has finished (even the slow US-states
+    # step) by the time the report actually needs to go out. Offset 7 minutes
+    # past the hour -- GitHub's docs call out :00 as the most congested
+    # minute for scheduled workflows.
+    - cron: '7 23,5,11 * * *'  # ~7 PM, 1 AM, and 7 AM EDT (UTC-4) -- 4h before 11 PM / 5 AM / 11 AM
   workflow_dispatch:        # allow manual trigger from GitHub Actions tab
 
 jobs:
