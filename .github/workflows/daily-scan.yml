@@ -2,7 +2,10 @@ name: Trademark Scan
 
 on:
   schedule:
-    - cron: '0 3,9,15 * * *'  # three times daily: 11 PM, 5 AM, and 11 AM EDT (UTC-4)
+    # Offset 7 minutes past the hour -- GitHub's own docs call out :00 as the
+    # most congested minute for scheduled workflows (everyone else schedules
+    # there too), which was causing 1-2 hour queue delays.
+    - cron: '7 3,9,15 * * *'  # three times daily: ~11 PM, 5 AM, and 11 AM EDT (UTC-4)
   workflow_dispatch:        # allow manual trigger from GitHub Actions tab
 
 jobs:
