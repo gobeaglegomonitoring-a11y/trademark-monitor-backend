@@ -132,7 +132,14 @@ router.post('/runall', async (req, res) => {
     { name: 'domains', fn: () => require('../scrapers/domainScraper').runDomainScraper() },
     { name: 'marketplace', fn: () => require('../scrapers/marketplaceScraper').runMarketplaceScraper() },
     { name: 'social', fn: () => require('../scrapers/socialScraper').runSocialScraper() },
-    { name: 'us_states', timeoutMs: 95 * 60 * 1000, fn: () => require('../scrapers/usStateScraper').runUSStateScraper() },
+    {
+      name: 'us_states',
+      // Must stay ahead of usStateScraper's own internal STATE_RUN_TIMEOUT_MS
+      // (same env var, +10 min buffer for its post-timeout drain) -- this is
+      // just the outer orchestration-level backstop, not the real limit.
+      timeoutMs: Math.max(90 * 60 * 1000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 0) + 10 * 60 * 1000,
+      fn: () => require('../scrapers/usStateScraper').runUSStateScraper(),
+    },
   ];
 
   console.log(`[SCAN] Scheduled scan started at ${scanStartTime.toISOString()}`);
