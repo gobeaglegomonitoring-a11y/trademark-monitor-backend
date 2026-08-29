@@ -164,6 +164,7 @@ async function runUKIPOScraper() {
               registry: "UKIPO",
               filing_name: name,
               filing_date: filingDate || null,
+              owner_name: owner || null,
               matched_keyword: kw.term,
               similarity_score: finalScore,
               raw_data: raw,

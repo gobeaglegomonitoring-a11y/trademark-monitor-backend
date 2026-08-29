@@ -26,8 +26,8 @@ async function fetchMatches({ keywords, dateFrom, dateTo, status }) {
   };
 
   const [tm, dm, mm, sm] = await Promise.all([
-    fetchAll('trademark_matches', 'matched_keyword, filing_name, registry, similarity_score, status, created_at', 'matched_keyword'),
-    fetchAll('domain_matches', 'keyword_matched, domain, status, created_at', 'keyword_matched'),
+    fetchAll('trademark_matches', 'matched_keyword, filing_name, registry, owner_name, similarity_score, status, created_at', 'matched_keyword'),
+    fetchAll('domain_matches', 'keyword_matched, domain, registrant_info, status, created_at', 'keyword_matched'),
     fetchAll('marketplace_matches', 'keyword_matched, platform, listing_title, listing_url, seller_name, status, created_at', 'keyword_matched'),
     fetchAll('social_matches', 'keyword_matched, platform, handle_or_url, status, created_at', 'keyword_matched'),
   ]);
@@ -130,19 +130,19 @@ function section(title, color, count, html) {
 function attentionTable(matches, scanStartedAt) {
   const rows = [
     ...matches.trademark.map(r => ({
-      keyword: r.matched_keyword, source: r.registry || 'Trademark', item: r.filing_name,
+      keyword: r.matched_keyword, source: r.registry || 'Trademark', item: r.filing_name, owner: r.owner_name,
       status: r.status, date: r.created_at, score: r.similarity_score,
     })),
     ...matches.domain.map(r => ({
-      keyword: r.keyword_matched, source: 'Domain', item: r.domain,
+      keyword: r.keyword_matched, source: 'Domain', item: r.domain, owner: r.registrant_info,
       status: r.status, date: r.created_at,
     })),
     ...matches.marketplace.map(r => ({
-      keyword: r.keyword_matched, source: r.platform || 'Marketplace', item: r.listing_title,
+      keyword: r.keyword_matched, source: r.platform || 'Marketplace', item: r.listing_title, owner: r.seller_name,
       status: r.status, date: r.created_at,
     })),
     ...matches.social.map(r => ({
-      keyword: r.keyword_matched, source: r.platform || 'Social', item: r.handle_or_url,
+      keyword: r.keyword_matched, source: r.platform || 'Social', item: r.handle_or_url, owner: null,
       status: r.status, date: r.created_at,
     })),
   ]
@@ -164,12 +164,12 @@ function attentionTable(matches, scanStartedAt) {
     return `<tr>
       <td><span class="priority">${priority}</span></td>
       <td>${h(r.keyword)}</td><td>${h(r.source)}</td>
-      <td class="long">${h(r.item)}</td><td>${fmt(r.date)}</td>
+      <td class="long">${h(r.item)}</td><td class="long">${h(r.owner)}</td><td>${fmt(r.date)}</td>
     </tr>`;
   }).join('');
 
   return `<table><thead><tr>
-    <th>Priority</th><th>Keyword</th><th>Source</th><th>Potential Match</th><th>Found</th>
+    <th>Priority</th><th>Keyword</th><th>Source</th><th>Potential Match</th><th>Owner / Seller</th><th>Found</th>
   </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
@@ -191,11 +191,12 @@ function trademarkTable(rows) {
       <td>${h(r.matched_keyword)}</td>
       <td>${h(r.filing_name)}</td>
       <td>${h(r.registry)}</td>
+      <td>${h(r.owner_name)}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
   return `<table><thead><tr>
-    <th>Keyword</th><th>Filing Name</th><th>Registry</th><th>Status</th><th>Date</th>
+    <th>Keyword</th><th>Filing Name</th><th>Registry</th><th>Owner / Applicant</th><th>Status</th><th>Date</th>
   </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 
@@ -206,11 +207,12 @@ function domainTable(rows) {
     <tr>
       <td>${h(r.keyword_matched)}</td>
       <td>${h(r.domain)}</td>
+      <td>${h(r.registrant_info)}</td>
       <td>${badge(r.status)}</td>
       <td>${fmt(r.created_at)}</td>
     </tr>`).join('');
   return `<table><thead><tr>
-    <th>Keyword</th><th>Domain</th><th>Status</th><th>Date</th>
+    <th>Keyword</th><th>Domain</th><th>Registrant</th><th>Status</th><th>Date</th>
   </tr></thead><tbody>${trs}</tbody></table>${note}`;
 }
 

@@ -103,6 +103,7 @@ async function insertMatch(filing, keyword, score) {
       registry:         "CIPO",
       filing_name:      filing.name,
       filing_date:      filing.filingDate || null,
+      owner_name:       filing.owner || null,
       matched_keyword:  keyword,
       similarity_score: score,
       raw_data:         filing,

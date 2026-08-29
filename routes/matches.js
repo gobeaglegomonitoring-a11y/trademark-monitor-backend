@@ -3,10 +3,10 @@ const router = express.Router();
 const supabase = require("../lib/supabase");
 
 const TABLES = {
-  trademark:   { table: "trademark_matches",   kwCol: "matched_keyword", nameCol: "filing_name",   sourceCol: "registry",  defaultSource: "Trademark"   },
-  domain:      { table: "domain_matches",      kwCol: "keyword_matched", nameCol: "domain",        sourceCol: null,        defaultSource: "Domain"      },
-  marketplace: { table: "marketplace_matches", kwCol: "keyword_matched", nameCol: "listing_title",  sourceCol: "platform",  defaultSource: "Marketplace" },
-  social:      { table: "social_matches",      kwCol: "keyword_matched", nameCol: "handle_or_url",  sourceCol: "platform",  defaultSource: "Social"      },
+  trademark:   { table: "trademark_matches",   kwCol: "matched_keyword", nameCol: "filing_name",   sourceCol: "registry",  defaultSource: "Trademark",   ownerCol: "owner_name"      },
+  domain:      { table: "domain_matches",      kwCol: "keyword_matched", nameCol: "domain",        sourceCol: null,        defaultSource: "Domain",      ownerCol: "registrant_info" },
+  marketplace: { table: "marketplace_matches", kwCol: "keyword_matched", nameCol: "listing_title",  sourceCol: "platform",  defaultSource: "Marketplace", ownerCol: "seller_name"     },
+  social:      { table: "social_matches",      kwCol: "keyword_matched", nameCol: "handle_or_url",  sourceCol: "platform",  defaultSource: "Social",      ownerCol: null              },
 };
 
 function normalizeRow(category, cfg, r) {
@@ -16,6 +16,10 @@ function normalizeRow(category, cfg, r) {
     category,
     keyword:    r[cfg.kwCol],
     match_name: r[cfg.nameCol],
+    // Who is actually using the name -- trademark applicant/owner, domain
+    // WHOIS registrant, or marketplace seller/shop -- so a real match can be
+    // followed up on, not just logged.
+    owner:      (cfg.ownerCol && r[cfg.ownerCol]) || null,
     date_found: r.created_at,
     status:     r.status || "new",
   };

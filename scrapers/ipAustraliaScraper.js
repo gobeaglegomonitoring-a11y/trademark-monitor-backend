@@ -190,6 +190,7 @@ async function runIPAustraliaScraper() {
             registry: 'IP Australia',
             filing_name: filingName,
             filing_date: hit.filingDate || null,
+            owner_name: hit.owner || null,
             matched_keyword: kw.term,
             similarity_score: score,
             raw_data: hit,

@@ -16,13 +16,25 @@ function getSimilarity(a, b) {
 }
 
 // USPTO response: { index, type, id, score, source: { ... } }
+// ownerName/applicantName come back as arrays (e.g. ["Starbucks Corporation
+// (CORPORATION; WASHINGTON, USA)"]), not plain strings -- unwrap before use.
+function firstOrValue(value) {
+  return Array.isArray(value) ? (value[0] || '') : (value || '');
+}
+
 function normalizeHit(hit) {
   const src = hit.source || hit._source || hit;
   return {
     filingName: src.wordmark || src.wordMark || src.markLiteralElements || src.markName || src.markText ||
                 (Array.isArray(src.markDescription) && src.markDescription[0]) || src.mark || src.name || '',
     filingDate: src.filedDate || src.filingDate || src.applicationDate || src.registrationDate || null,
-    owner: src.ownerName || src.applicantName || (src.owners && src.owners[0] && src.owners[0].name) || '',
+    // ownerFullText includes the registered mailing address (e.g. "Starbucks
+    // Corporation (CORPORATION; WASHINGTON, USA) DBA Starbucks Coffee
+    // Company; 2203 Airport Way South, ... Seattle, WASHINGTON 981241067,
+    // UNITED STATES") -- prefer it over the bare name so the report has an
+    // address to act on, not just who to search for.
+    owner: firstOrValue(src.ownerFullText) || firstOrValue(src.ownerName) || firstOrValue(src.applicantName) ||
+           (src.owners && src.owners[0] && src.owners[0].name) || '',
     raw: hit
   };
 }
@@ -233,6 +245,7 @@ async function runUSPTOScraper() {
             registry: 'USPTO',
             filing_name: filingName,
             filing_date: filingDate,
+            owner_name: owner || null,
             matched_keyword: kw.term,
             similarity_score: score,
             raw_data: raw,
