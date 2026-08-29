@@ -22,6 +22,15 @@ function firstOrValue(value) {
   return Array.isArray(value) ? (value[0] || '') : (value || '');
 }
 
+// ownerFullText is a HISTORY of owner entries, e.g. one "(REGISTRANT) ..."
+// entry (who originally filed) and a later "(LAST LISTED OWNER) ..." entry
+// (who holds it now, after any assignment) -- prefer the current owner over
+// the original filer since that's who to actually pursue.
+function currentOwnerFullText(value) {
+  if (!Array.isArray(value) || !value.length) return firstOrValue(value);
+  return value.find(s => /LAST LISTED OWNER/i.test(s)) || value[value.length - 1];
+}
+
 function normalizeHit(hit) {
   const src = hit.source || hit._source || hit;
   return {
@@ -33,7 +42,7 @@ function normalizeHit(hit) {
     // Company; 2203 Airport Way South, ... Seattle, WASHINGTON 981241067,
     // UNITED STATES") -- prefer it over the bare name so the report has an
     // address to act on, not just who to search for.
-    owner: firstOrValue(src.ownerFullText) || firstOrValue(src.ownerName) || firstOrValue(src.applicantName) ||
+    owner: currentOwnerFullText(src.ownerFullText) || firstOrValue(src.ownerName) || firstOrValue(src.applicantName) ||
            (src.owners && src.owners[0] && src.owners[0].name) || '',
     raw: hit
   };
@@ -284,4 +293,4 @@ async function runUSPTOScraper() {
   return totalFound;
 }
 
-module.exports = { runUSPTOScraper };
+module.exports = { runUSPTOScraper, normalizeHit };

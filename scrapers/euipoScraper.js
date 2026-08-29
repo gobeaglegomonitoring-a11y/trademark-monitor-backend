@@ -58,7 +58,10 @@ function normalizeEUIPOHit(tm) {
     filingDate = new Date(Number(filingDate)).toISOString().split("T")[0];
   }
 
-  const owner =
+  // Real COPLA hits use lowercase "applicantname" -- the older eSearch/bag
+  // shapes below are kept as fallbacks for any legacy response format.
+  const ownerName =
+    tm.applicantname ||
     (tm.trademarkOwnerBag &&
       tm.trademarkOwnerBag[0] &&
       tm.trademarkOwnerBag[0].trademarkOwnerName) ||
@@ -67,6 +70,11 @@ function normalizeEUIPOHit(tm) {
       tm.applicantBag[0].applicantName) ||
     tm.applicantName ||
     "";
+
+  const ownerParts = [ownerName];
+  if (tm.applicantCountry) ownerParts.push(`Country: ${tm.applicantCountry}`);
+  if (tm.representativename) ownerParts.push(`Representative: ${tm.representativename}`);
+  const owner = ownerName ? ownerParts.join(' | ') : '';
 
   return { name, filingDate, owner, raw: tm };
 }
@@ -330,4 +338,4 @@ async function runEUIPOScraper() {
   return totalInserted;
 }
 
-module.exports = { runEUIPOScraper };
+module.exports = { runEUIPOScraper, normalizeEUIPOHit };

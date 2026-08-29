@@ -60,12 +60,27 @@ async function searchIPAustralia(browser, keyword) {
     // Extract trademark names from the HTML results table
     const trademarks = await page.evaluate(() => {
       const results = [];
+      const allRows = Array.from(document.querySelectorAll('table tbody tr'));
+
+      // The owner isn't in a fixed cell of the trademark's own row -- it's in
+      // a SEPARATE row right after it, shaped like "Owners:\n\nStarbucks
+      // Corporation". Build a row -> owner lookup before extracting names
+      // (this is why owner was always empty before: the old code assumed a
+      // fixed cell index that this site doesn't actually use).
+      const ownerForRow = new Map();
+      allRows.forEach((row, i) => {
+        const match = (row.textContent || '').match(/Owners?:\s*([\s\S]+)/i);
+        if (match && i > 0) {
+          ownerForRow.set(allRows[i - 1], match[1].trim().split('\n')[0].trim());
+        }
+      });
+      const ownerFor = (row) => (row && ownerForRow.get(row)) || '';
 
       // IP Australia results page: trademark name is usually in a specific cell
       // Try: cells with data-label attribute (responsive tables)
       document.querySelectorAll('[data-label="Trade mark"], [data-label="Trade Mark Words"], td.word-mark, td.trademark').forEach(el => {
         const text = el.textContent.trim();
-        if (text) results.push({ name: text, filingDate: null, owner: '' });
+        if (text) results.push({ name: text, filingDate: null, owner: ownerFor(el.closest('tr')) });
       });
 
       if (results.length === 0) {
@@ -74,26 +89,23 @@ async function searchIPAustralia(browser, keyword) {
           const text = link.textContent.trim();
           const row = link.closest('tr');
           let filingDate = null;
-          let owner = '';
           if (row) {
             const cells = row.querySelectorAll('td');
-            // Typical columns: App No | Status | Trade mark | Class | Owner | Date
             if (cells[5]) filingDate = cells[5].textContent.trim();
-            if (cells[4]) owner = cells[4].textContent.trim();
           }
-          if (text && text.length < 200) results.push({ name: text, filingDate, owner });
+          if (text && text.length < 200) results.push({ name: text, filingDate, owner: ownerFor(row) });
         });
       }
 
       if (results.length === 0) {
         // Broad fallback: all table rows
-        document.querySelectorAll('table tbody tr').forEach(row => {
+        allRows.forEach(row => {
+          if (/Owners?:/i.test(row.textContent || '')) return; // skip owner sub-rows themselves
           const cells = row.querySelectorAll('td');
           if (cells.length >= 3) {
             const name = cells[2].textContent.trim();
             const filingDate = cells[5] ? cells[5].textContent.trim() : null;
-            const owner = cells[4] ? cells[4].textContent.trim() : '';
-            if (name) results.push({ name, filingDate, owner });
+            if (name) results.push({ name, filingDate, owner: ownerFor(row) });
           }
         });
       }

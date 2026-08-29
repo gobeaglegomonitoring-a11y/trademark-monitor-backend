@@ -192,4 +192,4 @@ async function runUKIPOScraper() {
   return totalInserted;
 }
 
-module.exports = { runUKIPOScraper };
+module.exports = { runUKIPOScraper, normalizeUKHit };

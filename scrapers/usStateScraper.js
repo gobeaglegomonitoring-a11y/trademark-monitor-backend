@@ -36,7 +36,9 @@ function scrapeStateInChildProcess(stateCode, keyword, timeoutMs) {
           reject(new Error(parsed.error));
           return;
         }
-        resolve(parsed.names || []);
+        // Each item is {name, extra} -- extra carries whatever else the
+        // state's site returned alongside the name (address/status/agent).
+        resolve(parsed.results || []);
       },
     );
   });
@@ -186,7 +188,8 @@ function similarity(a, b) {
   return 1 - levenshtein.get(s1, s2) / maxLen;
 }
 
-// Generic cheerio td extractor — deduplicated, length-filtered
+// Generic cheerio td extractor — deduplicated, length-filtered.
+// Kept for anything that still wants a flat name list.
 function extractTd($) {
   const seen = new Set();
   const out  = [];
@@ -195,6 +198,33 @@ function extractTd($) {
     if (t && t.length > 1 && t.length < 250 && !seen.has(t)) {
       seen.add(t);
       out.push(t);
+    }
+  });
+  return out;
+}
+
+// Groups <td> cells by their row instead of flattening them, so whatever
+// else that row contains (status, address, registered agent -- the columns
+// vary per state, there's no reliable way to label them generically) can
+// travel alongside each candidate name as "extra" context. Every cell in a
+// row is still tried as a name candidate, same as extractTd() before it --
+// this only adds the rest of that row, it doesn't change what counts as a
+// match.
+function extractRowCandidates($) {
+  const seen = new Set();
+  const out = [];
+  $('tr').each((_, tr) => {
+    const cells = $(tr).find('td')
+      .map((_, el) => $(el).text().trim()).get()
+      .filter(t => t && t.length > 1 && t.length < 250);
+    for (let i = 0; i < cells.length; i++) {
+      const name = cells[i];
+      const extra = cells.filter((_, j) => j !== i).join(' | ').slice(0, 500);
+      const key = `${name}${extra}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push({ name, extra });
+      }
     }
   });
   return out;
@@ -212,7 +242,19 @@ async function scrapeWithAPI(state, keyword) {
     headers: { 'Accept': 'application/json' },
   });
   if (!Array.isArray(data)) return [];
-  return data.map(r => (r[state.nameField] || '').trim()).filter(Boolean);
+  return data.map(r => {
+    const name = (r[state.nameField] || '').trim();
+    if (!name) return null;
+    // The rest of the Socrata record (address, status, registered agent,
+    // etc. -- field names vary per state's dataset) travels along as extra
+    // context so the match can be traced back to a real business.
+    const extra = Object.entries(r)
+      .filter(([k]) => k !== state.nameField && r[k] != null && r[k] !== '')
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(' | ')
+      .slice(0, 500);
+    return { name, extra };
+  }).filter(Boolean);
 }
 
 // ── AXIOS BRANCH (plain HTML GET) ────────────────────────────────────────────
@@ -224,7 +266,7 @@ async function scrapeWithAxios(state, keyword) {
     headers: BASE_HEADERS,
     httpsAgent: HTTPS_AGENT,
   });
-  return extractTd(cheerio.load(resp.data));
+  return extractRowCandidates(cheerio.load(resp.data));
 }
 
 // ── ASP.NET BRANCH — extracts ALL hidden inputs to avoid 500 errors ──────────
@@ -264,7 +306,7 @@ async function scrapeWithASPNET(state, keyword) {
     maxRedirects: 5,
   });
 
-  return extractTd(cheerio.load(postResp.data));
+  return extractRowCandidates(cheerio.load(postResp.data));
 }
 
 // ── BROWSER BRANCH (Puppeteer — SPAs, 403 sites, JS-rendered) ───────────────
@@ -337,20 +379,46 @@ async function scrapeWithBrowser(state, keyword) {
     await page.waitForNavigation({ waitUntil, timeout: actionTimeout }).catch(() => {});
     await new Promise(r => setTimeout(r, settleDelay));
 
-    // Extract names
-    const resSel = state.resultsSelector || 'td';
-    const names = await page.$$eval(resSel,
-      els => els.map(el => el.textContent.trim()).filter(t => t.length > 1 && t.length < 250)
-    ).catch(() => []);
+    // Extract names. States with a custom resultsSelector already point at
+    // just the name column deliberately (e.g. FL's "td:nth-child(2)") -- keep
+    // that exact behavior. The default generic 'td' case groups by row
+    // instead, so the rest of that row (address/status/agent -- varies per
+    // state) can travel along as extra context for tracing the business.
+    let candidates;
+    if (state.resultsSelector) {
+      const names = await page.$$eval(state.resultsSelector,
+        els => els.map(el => el.textContent.trim()).filter(t => t.length > 1 && t.length < 250)
+      ).catch(() => []);
+      candidates = [...new Set(names)].map(name => ({ name, extra: '' }));
+    } else {
+      const rows = await page.$$eval('tr',
+        trs => trs.map(tr => Array.from(tr.querySelectorAll('td'))
+          .map(td => td.textContent.trim())
+          .filter(t => t.length > 1 && t.length < 250))
+      ).catch(() => []);
+      const seen = new Set();
+      candidates = [];
+      for (const cells of rows) {
+        for (let i = 0; i < cells.length; i++) {
+          const name = cells[i];
+          const extra = cells.filter((_, j) => j !== i).join(' | ').slice(0, 500);
+          const key = `${name}${extra}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            candidates.push({ name, extra });
+          }
+        }
+      }
+    }
 
-    return [...new Set(names)];
+    return candidates;
   } finally {
     await browser.close();
   }
 }
 
 // ── INSERT IF NEW ────────────────────────────────────────────────────────────
-async function insertIfNew(registry, filingName, keyword, score) {
+async function insertIfNew(registry, filingName, keyword, score, extraInfo) {
   const { data: ex } = await supabase
     .from('trademark_matches')
     .select('id')
@@ -364,6 +432,7 @@ async function insertIfNew(registry, filingName, keyword, score) {
     registry,
     filing_name: filingName,
     matched_keyword: keyword,
+    owner_name: extraInfo || null,
     similarity_score: score,
     status: 'new',
     created_at: new Date().toISOString(),
@@ -559,23 +628,27 @@ async function runUSStateScraperReliable(code = null) {
           // the child process (stateScrapeWorker.js) -- this call just waits
           // for its result. The +30s here is only a backstop in case the
           // child's own timeout handling doesn't get a chance to print output.
-          const names = [...new Set(await scrapeStateInChildProcess(
+          // Each result carries {name, extra} -- extra is whatever else that
+          // state's site returned alongside the name (address, status,
+          // registered agent, etc.), so a match can be traced to a real
+          // business instead of just a bare name.
+          const results = await scrapeStateInChildProcess(
             state.code,
             kw.term,
             STATE_KEYWORD_TIMEOUT_MS + 30 * 1000,
-          ))];
+          );
 
           let matches = 0;
-          for (const name of names) {
+          for (const { name, extra } of results) {
             if (!isValidMatch(name, kw.term)) continue;
             const score = similarity(stripSuffixes(name).toLowerCase(), kw.term.toLowerCase());
-            if (await insertIfNew(`US-${state.code}`, name, kw.term, score)) {
+            if (await insertIfNew(`US-${state.code}`, name, kw.term, score, extra)) {
               totalFound++;
               matches++;
             }
           }
           successfulChecks++;
-          console.log(`[US-STATES] [${state.code}] "${kw.term}" -> ${names.length} results, ${matches} match(es)`);
+          console.log(`[US-STATES] [${state.code}] "${kw.term}" -> ${results.length} results, ${matches} match(es)`);
         } catch (err) {
           failedChecks++;
           const message = `${state.code}/${kw.term}: ${err.message}`;

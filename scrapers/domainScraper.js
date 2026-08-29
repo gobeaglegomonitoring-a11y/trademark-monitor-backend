@@ -190,4 +190,4 @@ async function runDomainScraper() {
   return totalFound;
 }
 
-module.exports = { runDomainScraper, generateTypos };
+module.exports = { runDomainScraper, generateTypos, lookupRegistrant };

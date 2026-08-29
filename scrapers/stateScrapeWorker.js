@@ -6,7 +6,11 @@
 // crashes during a full US-states run).
 //
 // Usage: node stateScrapeWorker.js <STATE_CODE> <KEYWORD>
-// Prints exactly one JSON line to stdout: {"names":[...]} or {"error":"..."}
+// Prints exactly one JSON line to stdout:
+//   {"results":[{"name":"...","extra":"..."}, ...]} or {"error":"..."}
+// "extra" is whatever else that state's site returned alongside the name
+// (address, status, registered agent -- varies per state), so a match can
+// be traced back to a real business, not just a bare name.
 
 require('dotenv').config();
 const states = require('../config/usStates.json');
@@ -38,13 +42,25 @@ async function main() {
     return [];
   }, state.retries || 0);
 
-  const names = [...new Set(await withTimeout(
+  const raw = await withTimeout(
     search,
     STATE_KEYWORD_TIMEOUT_MS,
     `[US-STATES] ${state.code} "${keyword}"`,
-  ))];
+  );
 
-  process.stdout.write(JSON.stringify({ names }) + '\n');
+  // Dedupe by name+extra together (objects aren't primitive-comparable, so
+  // a plain Set on the array wouldn't dedupe them).
+  const seen = new Set();
+  const results = [];
+  for (const item of raw) {
+    const key = `${item.name}|${item.extra || ''}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      results.push(item);
+    }
+  }
+
+  process.stdout.write(JSON.stringify({ results }) + '\n');
 }
 
 main()
