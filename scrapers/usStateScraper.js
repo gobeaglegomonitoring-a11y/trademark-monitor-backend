@@ -5,8 +5,42 @@ const supabase = require('../lib/supabase');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 
 const states = require('../config/usStates.json');
+const STATE_WORKER_PATH = path.join(__dirname, 'stateScrapeWorker.js');
+
+// Runs one state's scrape in its own disposable Node process instead of
+// in-process, so the OS fully reclaims its memory (Chromium included) the
+// moment it exits -- see stateScrapeWorker.js for why.
+function scrapeStateInChildProcess(stateCode, keyword, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [STATE_WORKER_PATH, stateCode, keyword],
+      { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          reject(new Error(err.killed ? `${stateCode} "${keyword}" timed out after ${Math.round(timeoutMs / 1000)}s` : err.message));
+          return;
+        }
+        const line = stdout.trim().split('\n').pop() || '{}';
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch (parseErr) {
+          reject(new Error(`Worker produced invalid output: ${parseErr.message}`));
+          return;
+        }
+        if (parsed.error) {
+          reject(new Error(parsed.error));
+          return;
+        }
+        resolve(parsed.names || []);
+      },
+    );
+  });
+}
 
 // Render cannot reliably launch several Chromium processes at once. Sequential
 // browser work avoids ETXTBSY and WebSocket-endpoint startup failures.
@@ -521,17 +555,14 @@ async function runUSStateScraperReliable(code = null) {
       for (const kw of keywords) {
         if (cancelRequested) return;
         try {
-          const search = withRetry(`[${state.code}] "${kw.term}"`, async () => {
-            if (state.method === 'api') return scrapeWithAPI(state, kw.term);
-            if (state.method === 'axios') return scrapeWithAxios(state, kw.term);
-            if (state.method === 'aspnet') return scrapeWithASPNET(state, kw.term);
-            if (state.method === 'browser') return scrapeWithBrowser(state, kw.term);
-            return [];
-          }, state.retries || 0);
-          const names = [...new Set(await withTimeout(
-            search,
-            STATE_KEYWORD_TIMEOUT_MS,
-            `[US-STATES] ${state.code} "${kw.term}"`,
+          // Retry, method dispatch, and the keyword timeout all happen inside
+          // the child process (stateScrapeWorker.js) -- this call just waits
+          // for its result. The +30s here is only a backstop in case the
+          // child's own timeout handling doesn't get a chance to print output.
+          const names = [...new Set(await scrapeStateInChildProcess(
+            state.code,
+            kw.term,
+            STATE_KEYWORD_TIMEOUT_MS + 30 * 1000,
           ))];
 
           let matches = 0;
@@ -644,4 +675,17 @@ async function runUSStateScraperReliable(code = null) {
   }
 }
 
-module.exports = { runUSStateScraper: runUSStateScraperReliable, getUnsupportedStates };
+module.exports = {
+  runUSStateScraper: runUSStateScraperReliable,
+  getUnsupportedStates,
+  // Exported for scrapers/stateScrapeWorker.js, which runs a single state's
+  // scrape in its own disposable process so the OS fully reclaims its memory
+  // (Chromium included) on exit, instead of it accumulating across all 46
+  // states in one long-lived process.
+  scrapeWithAPI,
+  scrapeWithAxios,
+  scrapeWithASPNET,
+  scrapeWithBrowser,
+  withRetry,
+  withTimeout,
+};

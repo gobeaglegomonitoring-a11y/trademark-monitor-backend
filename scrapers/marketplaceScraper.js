@@ -415,6 +415,11 @@ async function scrapeEtsy(keyword) {
   return { listings: relevant, skipped: false };
 }
 
+// Amazon deactivated for now -- entire scraper commented out, not deleted,
+// so it can be restored later by uncommenting this block (and the
+// { name: 'Amazon', fn: scrapeAmazon } line in runMarketplaceScraper's
+// platformFns array below).
+/*
 async function scrapeAmazon(keyword) {
   return withBrowserPage('Amazon', async page => {
     await page.goto(
@@ -462,6 +467,7 @@ async function scrapeAmazon(keyword) {
     return { listings, skipped: false };
   });
 }
+*/
 
 async function insertListing(platform, keyword, listing) {
   try {
@@ -543,7 +549,9 @@ async function runMarketplaceScraper() {
     logId = logEntry?.id;
 
     const platformFns = [
-      { name: 'Amazon', fn: scrapeAmazon },
+      // Amazon deactivated for now -- scrapeAmazon() is left in place below,
+      // just not called, so it can be turned back on by uncommenting this line.
+      // { name: 'Amazon', fn: scrapeAmazon },
       { name: 'eBay', fn: scrapeEbay },
       { name: 'Etsy', fn: scrapeEtsy },
     ];
