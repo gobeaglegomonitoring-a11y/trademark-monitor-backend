@@ -1,14 +1,12 @@
 name: Trademark Scan
 
 "on":
-  schedule:
-    # Starts the scan 4 hours BEFORE each report is due (see send-report.yml),
-    # giving it a head start so it has finished (even the slow US-states
-    # step) by the time the report actually needs to go out. Offset 7 minutes
-    # past the hour -- GitHub's docs call out :00 as the most congested
-    # minute for scheduled workflows.
-    - cron: '7 23,5,11 * * *'  # ~7 PM, 1 AM, and 7 AM EDT (UTC-4) -- 4h before 11 PM / 5 AM / 11 AM
-  workflow_dispatch:        # allow manual trigger from GitHub Actions tab
+  # Scheduling is handled by cron-job.org now (same target: /api/scan/runall).
+  # A GitHub-side schedule here fires within minutes of cron-job.org's and
+  # gets rejected with 409 (a scan is already running) -- pure noise, shows
+  # up as a failed run every time. Kept as workflow_dispatch only, for a
+  # manual/backup trigger from the Actions tab.
+  workflow_dispatch:
 
 jobs:
   run-scan:

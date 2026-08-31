@@ -143,7 +143,8 @@ router.post('/runall', async (req, res) => {
   ];
 
   console.log(`[SCAN] Scheduled scan started at ${scanStartTime.toISOString()}`);
-  for (const scraper of scrapers) {
+  for (let i = 0; i < scrapers.length; i++) {
+    const scraper = scrapers[i];
     try {
       const count = await runWithTimeout(scraper);
       results[scraper.name] = count ?? 'done';
@@ -151,6 +152,29 @@ router.post('/runall', async (req, res) => {
     } catch (err) {
       errors[scraper.name] = err.message;
       console.error(`[SCAN] ${scraper.name} error:`, err.message);
+    }
+    // Each scraper (Chromium included) has closed by this point, but memory
+    // isn't necessarily reclaimed yet. Force a GC pass and give the OS a
+    // moment before the next scraper starts.
+    if (global.gc) global.gc();
+    const nextScraper = scrapers[i + 1];
+    if (nextScraper && nextScraper.name === 'us_states') {
+      // us_states runs last and needs the most headroom of any of them -- an
+      // isolated run reliably completes all 46 states, but the full pipeline
+      // was consistently dying partway through (22-35/46) because the 9
+      // scrapers before it were leaving enough residual memory behind to eat
+      // into its budget. A few seconds of GC isn't enough to actually settle
+      // that -- give it several minutes, with periodic GC passes, before
+      // us_states starts.
+      console.log('[SCAN] Pausing before us_states to let memory from the previous scrapers actually settle...');
+      const settleMs = 5 * 60 * 1000;
+      const gcIntervalMs = 30 * 1000;
+      for (let waited = 0; waited < settleMs; waited += gcIntervalMs) {
+        await new Promise(resolve => setTimeout(resolve, gcIntervalMs));
+        if (global.gc) global.gc();
+      }
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
   console.log(`[SCAN] Scheduled scan complete at ${new Date().toISOString()}`);

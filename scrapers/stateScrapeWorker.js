@@ -23,7 +23,8 @@ const {
   withTimeout,
 } = require('./usStateScraper');
 
-const STATE_KEYWORD_TIMEOUT_MS = Math.max(10 * 60 * 1000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 0);
+// Kept in sync with usStateScraper.js's own STATE_KEYWORD_TIMEOUT_MS.
+const STATE_KEYWORD_TIMEOUT_MS = Math.max(3 * 60 * 1000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 0);
 
 async function main() {
   const [stateCode, keyword] = process.argv.slice(2);

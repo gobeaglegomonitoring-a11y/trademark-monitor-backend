@@ -1,12 +1,12 @@
 name: Send Scheduled Report
 
 "on":
-  schedule:
-    # Exact times the client wants the report: 11 PM, 5 AM, and 11 AM EDT
-    # (UTC-4). Offset 7 minutes past the hour to avoid GitHub's most
-    # congested scheduling minute (:00).
-    - cron: '7 3,9,15 * * *'
-  workflow_dispatch:        # allow manual trigger from GitHub Actions tab
+  # Scheduling is handled by cron-job.org now (same target:
+  # /api/scan/send-report). Unlike /api/scan/runall, this endpoint has no
+  # "already sending" lock, so a GitHub-side schedule firing alongside
+  # cron-job.org's would send the client a duplicate report email every
+  # time. Kept as workflow_dispatch only, for a manual/backup trigger.
+  workflow_dispatch:
 
 jobs:
   send-report:

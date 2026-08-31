@@ -122,8 +122,36 @@ app.get("/api/test-social", async (req, res) => {
   res.json({ message: `Social scan complete. ${total} new match(es) found.` });
 });
 
+// A fresh process boot means any scan_logs row still open (completed_at
+// null) from before this boot is definitely orphaned -- no state survives a
+// restart, so whatever was "running" it is gone. Without this, a crashed/
+// restarted scan sits showing as "running" on the dashboard for up to 2
+// hours, until the next /api/scan-logs request happens to cross that row's
+// own stale-age threshold -- this finalizes it immediately on boot instead.
+async function reconcileOrphanedScansOnBoot() {
+  const supabase = require('./lib/supabase');
+  const { data: orphaned, error } = await supabase
+    .from('scan_logs')
+    .select('id, scan_type, error_log')
+    .is('completed_at', null);
+  if (error) { console.error('[BOOT] Orphaned-scan reconciliation query failed:', error.message); return; }
+  for (const row of orphaned || []) {
+    const { error: updateError } = await supabase.from('scan_logs').update({
+      completed_at: new Date().toISOString(),
+      error_log: row.error_log
+        ? `${row.error_log} | Abandoned: backend restarted before scan completion`
+        : 'Abandoned: backend restarted before scan completion',
+    }).eq('id', row.id);
+    if (updateError) console.error(`[BOOT] Failed to reconcile ${row.scan_type} (${row.id}):`, updateError.message);
+  }
+  if (orphaned && orphaned.length) {
+    console.log(`[BOOT] Reconciled ${orphaned.length} orphaned scan_logs row(s) from before this restart.`);
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  reconcileOrphanedScansOnBoot();
 });
 const { sendAlertIfNewMatches } = require("./services/emailAlert");
 app.get("/api/test-email-alert", async (req, res) => {

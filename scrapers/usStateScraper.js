@@ -47,7 +47,12 @@ function scrapeStateInChildProcess(stateCode, keyword, timeoutMs) {
 // Render cannot reliably launch several Chromium processes at once. Sequential
 // browser work avoids ETXTBSY and WebSocket-endpoint startup failures.
 const STATE_CONCURRENCY = 1;
-const STATE_KEYWORD_TIMEOUT_MS = Math.max(10 * 60 * 1000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 0);
+// A state that's actually going to succeed reliably finishes in 1-4 minutes;
+// the ones that fail (CA, MO, AZ, etc.) were consistently burning the full
+// old 10-minute ceiling before giving up and moving on. Lowering this cuts
+// dead time on failing states significantly without cutting off genuine
+// slow-but-working ones.
+const STATE_KEYWORD_TIMEOUT_MS = Math.max(3 * 60 * 1000, Number(process.env.US_STATE_KEYWORD_TIMEOUT_MS) || 0);
 const STATE_RUN_TIMEOUT_MS = Math.max(90 * 60 * 1000, Number(process.env.US_STATE_RUN_TIMEOUT_MS) || 0);
 
 // Best-effort container memory check (cgroup v2, falling back to v1). Render's
