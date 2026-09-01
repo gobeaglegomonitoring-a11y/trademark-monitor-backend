@@ -149,10 +149,13 @@ async function reconcileOrphanedScansOnBoot() {
   }
 }
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   reconcileOrphanedScansOnBoot();
 });
+// So routes/scan.js can gracefully close+restart this exact server instance
+// after a full scan cycle, without a circular require of this file.
+app.set('httpServer', httpServer);
 const { sendAlertIfNewMatches } = require("./services/emailAlert");
 app.get("/api/test-email-alert", async (req, res) => {
   const result = await sendAlertIfNewMatches();

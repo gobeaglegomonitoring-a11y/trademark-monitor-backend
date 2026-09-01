@@ -189,6 +189,35 @@ router.post('/runall', async (req, res) => {
 
   console.log('[SCAN] All scrapers finished. Results:', results, 'Errors:', errors);
   scanState = { ...scanState, running: false, finishedAt: new Date().toISOString() };
+
+  // A manual trigger right after a fresh deploy reliably completes all 46
+  // us_states -- scheduled runs on this SAME long-lived process later died
+  // earlier and earlier each cycle (35/46, then 9/46, then 23/46), because
+  // every scan leaves a little memory behind that global.gc() alone doesn't
+  // fully reclaim. Restarting after every full cycle gives the next
+  // scheduled scan that same fresh-process advantage every time.
+  //
+  // Graceful, not abrupt: stop ACCEPTING new connections right away (so a
+  // request landing seconds from now fails fast and cleanly instead of
+  // hanging), but let any request already in flight (e.g. someone mid
+  // PDF-download) finish first -- up to 20s, then exit regardless so a
+  // stuck connection can't block the restart indefinitely. Render (like any
+  // persistent Web Service host) auto-restarts a process that exits, so
+  // this recovers on its own. The original cron-job.org/GitHub trigger
+  // already got its 202 response hours ago at the top of this handler, so
+  // none of this affects it.
+  const httpServer = req.app.get('httpServer');
+  if (httpServer) {
+    console.log('[SCAN] Scan cycle complete -- closing server and restarting to clear accumulated memory before the next scheduled scan.');
+    httpServer.close(() => {
+      console.log('[SCAN] All connections drained, exiting now.');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.log('[SCAN] Restart grace period elapsed, exiting now regardless of any still-open connection.');
+      process.exit(0);
+    }, 20000);
+  }
 });
 
 // POST /api/scan/send-report
